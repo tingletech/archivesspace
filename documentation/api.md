@@ -60,7 +60,7 @@ PUT an updated accession
 GET a (filtered) set of agents  
 POST a new agent  
 
-/agents/{key}
+/agents/{key}  
 GET a particular agent  
 PUT an updated agent 
 
