@@ -85,4 +85,27 @@ describe 'JSON model' do
   end
 
 
+  it "Supports the 'ifmissing' definition" do
+    JSONModel.create_model_for("strictschema",
+                               {
+                                 "type" => "object",
+                                 "properties" => {
+                                   "container" => {
+                                     "type" => "object",
+                                     "required" => true,
+                                     "properties" => {
+                                       "strict" => {"type" => "string", "ifmissing" => "error"},
+                                     }
+                                   }
+                                 },
+                               })
+
+    JSONModel::strict_mode(false)
+
+    model = JSONModel(:strictschema).from_hash({:container => {}}, false)
+
+    model._exceptions[:errors].keys.should eq(["strict"])
+    JSONModel::strict_mode(true)
+  end
+
 end
