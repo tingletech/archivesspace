@@ -29,5 +29,4 @@ describe 'ArchivalObject model' do
     expect { create_archival_object }.to raise_error
   end
 
-
 end

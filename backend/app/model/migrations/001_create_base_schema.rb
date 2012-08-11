@@ -150,6 +150,19 @@ Sequel.migration do
       add_foreign_key([:child_id], :archival_objects, :key => :id)
     end
 
+
+    create_table(:subjects) do
+      primary_key :id
+
+      String :term, :null => false, :unique => true
+      String :term_type, :null => false
+
+      DateTime :create_time, :null => false
+      DateTime :last_modified, :null => false
+    end
+
+    create_join_table(:subject_id=>:subjects, :archival_object_id=>:archival_objects)
+
   end
 
   down do
@@ -162,6 +175,9 @@ Sequel.migration do
 
     drop_table?(:accessions)
 
+    drop_table?(:archival_objects_subjects)
+
+    drop_table?(:subjects)
     drop_table?(:collection_tree)
     drop_table?(:archival_objects)
     drop_table?(:collections)

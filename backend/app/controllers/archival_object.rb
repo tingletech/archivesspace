@@ -8,20 +8,6 @@ class ArchivesSpaceService < Sinatra::Base
     ao = ArchivalObject.create_from_json(params[:archival_object],
                                          :repo_id => params[:repo_id])
 
-    parent_id = JSONModel::parse_reference(params[:archival_object].parent,
-                                           :repo_id => params[:repo_id])
-
-    collection_id = JSONModel::parse_reference(params[:archival_object].collection,
-                                               :repo_id => params[:repo_id])
-
-
-    if collection_id
-      collection = Collection.get_or_die(collection_id[:id])
-
-      collection.link(:parent => parent_id ? parent_id[:id] : nil,
-                      :child => ao[:id])
-    end
-
     created_response(ao[:id], params[:archival_object]._warnings)
   end
 
@@ -40,10 +26,14 @@ class ArchivesSpaceService < Sinatra::Base
 
   Endpoint.get('/repositories/:repo_id/archival_objects/:archival_object_id')
     .params(["archival_object_id", Integer, "The archival object ID"],
-            ["repo_id", Integer, "The repository ID"])
+            ["repo_id", Integer, "The repository ID"],
+            ["resolve", [String], "A list of references to resolve and embed in the response",
+             :optional => true])
     .returns([200, "OK"]) \
   do
-    ArchivalObject.to_jsonmodel(params[:archival_object_id], :archival_object).to_json
+    json = ArchivalObject.to_jsonmodel(params[:archival_object_id], :archival_object)
+
+    json_response(resolve_references(json, params[:resolve]))
   end
 
 
