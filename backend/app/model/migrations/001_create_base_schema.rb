@@ -118,9 +118,11 @@ Sequel.migration do
 
       Integer :repo_id, :null => false
 
-      String :identifier, :null => false, :unique => true
-
-      String :title, :null => true
+      String :ref_id, :null => false, :unique => false
+      String :component_id, :null => true
+      
+      String :title, :null => true 
+      String :level, :null => true
 
       DateTime :create_time, :null => false
       DateTime :last_modified, :null => false
