@@ -13,18 +13,6 @@ class ArchivalObject < Sequel::Model(:archival_objects)
     end
   end
 
-  
-  def validate
-    # RefID must be unique within a collection
-    refcount = ArchivalObject.db[:archival_objects].
-                              join(:collection_tree, :child_id => :id).
-                              where(:ref_id=>@values[:ref_id]).count
-    super
-    errors.add(:ref_id, 'cannot already exist in this collection') if refcount > 0
-  
-  end
-
-
   def self.apply_subjects(ao, json, opts)
     ao.remove_all_subjects
 
@@ -46,15 +34,32 @@ class ArchivalObject < Sequel::Model(:archival_objects)
     end
   end
 
+  # Ensure that the Ref ID is not being used elsewhere in the collection
+  # Perhaps it would be easier to add a collection ID to the archival_objects table
+  def self.validate_ref_id(json, opts)
+    collection_id = JSONModel::parse_reference(json.collection, opts)
+    if collection_id
+      count = ArchivalObject.db[:collection_tree].
+                             select(:collection_id).
+                             filter(:collection_id=>collection_id[:id]).
+                             join(:archival_objects, :id => :child_id).
+                             where(:ref_id=>json.ref_id).
+                             count
+      if count > 0 
+        raise ValidationException.new(:invalid_object => json,
+                                      :errors => err["Ref ID #{json.ref_id} already in Use for Collection #{collection_id}"])
+      end
+    end
+  end
 
   ## Hook into the JSON model manipulations to set up references to other
   ## records.
 
   def self.create_from_json(json, opts = {})
+    validate_ref_id(json, opts)
     obj = super
     apply_subjects(obj, json, opts)
     set_collection(obj, json, opts)
-
     obj
   end
 
