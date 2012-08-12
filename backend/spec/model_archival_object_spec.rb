@@ -22,9 +22,7 @@ describe 'ArchivalObject model' do
     ArchivalObject[ao[:id]].title.should eq("A new archival object")
   end
 
-  # Not sure what to do about this: perhaps archival_objects should be
-  # prevented from having ref_ifs at all if they are not associated 
-  # with a collection. Needs more input from product owner.
+  # Not sure what to do about this: perhaps eliminate?
   
   # it "Prevents duplicate IDs " do
   #   ao = create_archival_object
