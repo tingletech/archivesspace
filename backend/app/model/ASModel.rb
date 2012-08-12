@@ -123,5 +123,16 @@ module ASModel
 
       json
     end
+    
+    def check_constraints(json, opts={:strict=>false}, violations)      
+      violations.each{|k, v|
+        if opts[:strict]
+          # Raise something
+        else
+          warn "Constraint violation:"
+#          Log.warn("Constraint violation: #{k} - #{v}")
+        end        
+      }      
+    end
   end
 end
