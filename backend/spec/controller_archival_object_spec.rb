@@ -4,6 +4,8 @@ describe 'Archival Object controller' do
 
   before(:each) do
     make_test_repo
+    @orig_stderr = $stderr
+    $stderr = StringIO.new
   end
 
 
@@ -42,16 +44,20 @@ describe 'Archival Object controller' do
     children[0]["title"].should eq("child archival object")
   end
   
-  it "prohibits two archival objects in the same collection having the same ref_id" do
+  it "warns when two archival objects in the same collection having the same ref_id" do
     collectionA = JSONModel(:collection).from_hash("title" => "a collection A")
     collectionA.save
     
     collectionB = JSONModel(:collection).from_hash("title" => "a collection B")
     collectionB.save
     
-    expect { create_archival_object("collection" => collectionA.uri, "ref_id" => "xyz") }.to_not raise_error
-    expect { create_archival_object("collection" => collectionB.uri, "ref_id" => "xyz") }.to_not raise_error
-    expect { create_archival_object("collection" => collectionA.uri, "ref_id" => "xyz") }.to raise_error
+    create_archival_object("collection" => collectionA.uri, "ref_id" => "xyz")
+    create_archival_object("collection" => collectionB.uri, "ref_id" => "xyz")
+    $stderr.rewind
+    $stderr.string.chomp.should_not include("Constraint violation:")
+    create_archival_object("collection" => collectionA.uri, "ref_id" => "xyz")
+    $stderr.rewind
+    $stderr.string.chomp.should include("Constraint violation:")
   end
   
   
@@ -124,6 +130,8 @@ describe 'Archival Object controller' do
     ao["subjects"][0]["term"].should eq("a test subject")
   end
 
-
+  after(:each) do
+    $stderr = @orig_stderr
+  end 
 
 end
