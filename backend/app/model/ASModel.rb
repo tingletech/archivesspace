@@ -20,9 +20,9 @@ module ASModel
   end
 
 
-  def update_from_json(json)
+  def update_from_json(json, opts = {})
     old = JSONModel(json.class.record_type).from_hash(self.values).to_hash
-    changes = self.class.references_to_ids(json)
+    changes = self.class.references_to_ids(json).merge(opts)
 
     old.each do |k, v|
       if not changes.has_key?(k)
