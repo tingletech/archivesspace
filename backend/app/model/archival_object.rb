@@ -12,8 +12,15 @@ class ArchivalObject < Sequel::Model(:archival_objects)
   def self.apply_subjects(ao, json, opts)
     ao.remove_all_subjects
 
-    (json.subjects or []).each do |subject|
-      ao.add_subject(Subject[JSONModel(:subject).id_for(subject)])
+    (json.subjects or []).each do |uri|
+      subject = Subject[JSONModel(:subject).id_for(uri)]
+      if subject.nil?
+        raise JSONModel::ValidationException.new(:errors => {
+                                                   :subjects => ["No subject found for #{uri}"]
+                                                 })
+      else
+        ao.add_subject(subject)
+      end
     end
   end
 
@@ -56,6 +63,17 @@ class ArchivalObject < Sequel::Model(:archival_objects)
 
     json = super(obj, type)
     json.subjects = obj.subjects.map {|subject| JSONModel(:subject).uri_for(subject.id)}
+
+    if obj.collection_id
+      json.collection = JSONModel(:collection).uri_for(obj.collection_id,
+                                                       {:repo_id => obj.repo_id})
+
+      if obj.parent_id
+        json.parent = JSONModel(:archival_object).uri_for(obj.parent_id,
+                                                          {:repo_id => obj.repo_id})
+      end
+    end
+
     json
   end
 

@@ -5,6 +5,7 @@ class Collection < Sequel::Model(:collections)
 
   def link(opts)
     child = ArchivalObject.get_or_die(opts[:child])
+    child.collection_id = self.id
     child.parent_id = opts[:parent]
     child.save
   end
@@ -59,19 +60,19 @@ class Collection < Sequel::Model(:collections)
 
     # The root node has a null parent
     self.link(:parent => nil,
-              :child => JSONModel("archival_object").id_for(tree["archival_object"],
-                                                            :repo_id => self.repo_id))
+              :child => JSONModel(:archival_object).id_for(tree["archival_object"],
+                                                           :repo_id => self.repo_id))
 
     nodes = [tree]
     while not nodes.empty?
       parent = nodes.pop
 
-      parent_id = JSONModel("archival_object").id_for(parent["archival_object"],
-                                                      :repo_id => self.repo_id)
+      parent_id = JSONModel(:archival_object).id_for(parent["archival_object"],
+                                                     :repo_id => self.repo_id)
 
       parent["children"].each do |child|
-        child_id = JSONModel("archival_object").id_for(child["archival_object"],
-                                                       :repo_id => self.repo_id)
+        child_id = JSONModel(:archival_object).id_for(child["archival_object"],
+                                                      :repo_id => self.repo_id)
 
         self.link(:parent => parent_id, :child => child_id)
         nodes.push(child)
