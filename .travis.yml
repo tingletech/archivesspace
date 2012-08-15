@@ -1,11 +1,17 @@
 language: ruby
 
 rvm:
+  - jruby-18mode
   - jruby-19mode
+  - jruby-head
+
+jdk:
+  - openjdk7
+  - oraclejdk7
+  - openjdk6
 
 script:
   - cd backend
   - build/run bootstrap
-  - build/run db:migrate
   - build/run test
   - build/run integration
