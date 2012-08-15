@@ -6,5 +6,6 @@ rvm:
 script:
   - cd backend
   - build/run bootstrap
+  - build/run db:migrate
   - build/run test
   - build/run integration
