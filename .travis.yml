@@ -1,0 +1,9 @@
+language: ruby
+rvm:
+  - jruby-19mode
+
+script:
+  - cd backend
+  - build/run bootstrap
+  - build/run test
+  - build/run integration
