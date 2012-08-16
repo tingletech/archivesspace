@@ -104,12 +104,15 @@ Sequel.migration do
       Integer :repo_id, :null => false
       String :title, :null => false
 
+      String :identifier, :null => false
+
       DateTime :create_time, :null => false
       DateTime :last_modified, :null => false
     end
 
     alter_table(:collections) do
       add_foreign_key([:repo_id], :repositories, :key => :id)
+      add_index([:repo_id, :identifier], :unique => true)
     end
 
 
@@ -121,9 +124,11 @@ Sequel.migration do
 
       Integer :parent_id, :null => true
 
-      String :identifier, :null => false, :unique => true
+      String :ref_id, :null => false, :unique => false
+      String :component_id, :null => true
 
       String :title, :null => true
+      String :level, :null => true
 
       DateTime :create_time, :null => false
       DateTime :last_modified, :null => false
@@ -133,8 +138,10 @@ Sequel.migration do
       add_foreign_key([:repo_id], :repositories, :key => :id)
       add_foreign_key([:collection_id], :collections, :key => :id)
       add_foreign_key([:parent_id], :archival_objects, :key => :id)
+      add_index([:collection_id, :ref_id], :unique => true)
     end
-    
+
+
     create_table(:vocabularies) do
       primary_key :id
       
@@ -147,6 +154,7 @@ Sequel.migration do
 
     self[:vocabularies].insert(:name => "global", :ref_id => "global", 
       :create_time => Time.now, :last_modified => Time.now)
+
 
     create_table(:subjects) do
       primary_key :id
