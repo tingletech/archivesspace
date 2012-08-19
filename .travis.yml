@@ -3,7 +3,7 @@ language: ruby
 rvm:
   - jruby-18mode
   - jruby-19mode
-  - jruby-head
+#  - jruby-head
 
 jdk:
   - openjdk7
@@ -15,3 +15,7 @@ script:
   - build/run bootstrap
   - build/run test
   - build/run integration
+  - cd ../frontend
+  - build/run bootstrap
+  - cd ../launcher
+  - builld/run
