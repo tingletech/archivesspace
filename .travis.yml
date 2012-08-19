@@ -18,4 +18,4 @@ script:
   - cd ../frontend
   - build/run bootstrap
   - cd ../launcher
-  - builld/run
+  - build/run
