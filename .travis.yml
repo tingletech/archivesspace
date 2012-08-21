@@ -17,5 +17,5 @@ script:
   - build/run integration
   - cd ../frontend
   - build/run bootstrap
-  - cd ../launcher
-  - build/run
+  - cd ..
+  - build/run dist
