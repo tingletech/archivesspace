@@ -11,11 +11,7 @@ jdk:
   - openjdk6
 
 script:
-  - cd backend
   - build/run bootstrap
-  - build/run test
-  - build/run integration
-  - cd ../frontend
-  - build/run bootstrap
-  - cd ..
+  - build/run backend:test
+  - build/run backend:integration
   - build/run dist
