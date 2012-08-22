@@ -1,14 +1,14 @@
 language: ruby
 
 rvm:
-#  - jruby-18mode
- - jruby-19mode
-#  - jruby-head
+  - jruby-18mode
+  - jruby-19mode
+  - jruby-head
 
 jdk:
-#  - openjdk7
+  - openjdk7
   - oraclejdk7
-#  - openjdk6
+  - openjdk6
 
 before_script:
   - "export DISPLAY=:99.0"
