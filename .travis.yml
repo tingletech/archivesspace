@@ -19,4 +19,5 @@ script:
   - build/run bootstrap
   - build/run backend:test
   - build/run backend:integration
+  - build/run dist
   - build/run selenium:test
