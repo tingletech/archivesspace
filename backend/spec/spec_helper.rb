@@ -3,16 +3,23 @@ if ENV['COVERAGE_REPORTS']
   require 'pp'
   require 'simplecov'
 
+  SimpleCov.root(File.join(File.dirname(__FILE__), "../../"))
+  SimpleCov.coverage_dir("backend/coverage")
+
   SimpleCov.start do
     # Not useful to include these since the test suite deliberately doesn't load
     # most of these files.
     add_filter "lib/bootstrap.rb"
     add_filter "lib/logging.rb"
+    add_filter "config/"
     add_filter "model/db.rb"    # Overriden below
+
+    # Leave gems out too
+    add_filter "build/gems"
   end
 end
 
-require_relative File.join("..", "app", "model", "db")
+require_relative "../app/model/db"
 
 
 Thread.current[:test_mode] = true
@@ -22,7 +29,7 @@ Thread.current[:test_mode] = true
 class DB
   def self.connect
     if not @pool
-      require_relative File.join("..", "app", "model", "db_migrator")
+      require_relative "../app/model/db_migrator"
       @pool = Sequel.connect("jdbc:derby:memory:fakedb;create=true",
                              :max_connections => 10,
                              # :loggers => [Logger.new($stderr)]
@@ -35,7 +42,7 @@ class DB
 end
 
 
-require_relative File.join("..", "app", "main")
+require_relative "../app/main"
 require 'sinatra'
 require 'rack/test'
 
