@@ -1,10 +1,13 @@
+# TODO: Testing with multiple database backends. By default,
+# ArchivesSpace will run these tests against the embedded Derby database
+# (see config/config-distribution.rb). To investigate this see 
+# http://about.travis-ci.org/docs/user/database-setup/
+
 language: ruby
 
 rvm:
-# I think it is using the same jruby every time b/c bootstrap installs it
-#  - jruby-18mode
+  # The bootstrap script installs jruby, so this setting does not matter.
   - jruby-19mode
-#  - jruby-head
 
 jdk:
   - openjdk7
@@ -24,3 +27,8 @@ script:
 # - build/run common:test  # https://github.com/hudmol/archivesspace/commit/193fe9a3990da74e37e98140c9eaa264ec801643#L0R106
   - build/run dist
   - build/run selenium:test
+
+notifications:
+  irc: "irc.freenode.org#archivesspace"
+  # don't send email for now, until we know who we want to receive it
+  email: false

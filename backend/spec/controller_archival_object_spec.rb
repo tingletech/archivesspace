@@ -24,6 +24,12 @@ describe 'Archival Object controller' do
   end
 
 
+  it "lets you list all archival objects" do
+    id = create_archival_object
+    JSONModel(:archival_object).all.count.should eq(1)
+  end
+
+
   it "lets you create an archival object with a parent" do
     collection = JSONModel(:collection).from_hash("title" => "a collection", "id_0" => "abc123")
     collection.save
@@ -131,6 +137,6 @@ describe 'Archival Object controller' do
 
     ao = JSONModel(:archival_object).find(created, "resolve[]" => "subjects")
 
-    ao.subjects[0]["terms"][0]["term"].should eq("a test subject")
+    ao['resolved']['subjects'][0]["terms"][0]["term"].should eq("a test subject")
   end
 end
