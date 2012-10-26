@@ -1,18 +1,19 @@
 require 'json-schema'
+require_relative 'json_schema_utils'
+require_relative 'asutils'
 
 
 module JSONModel
 
-  @@schema = {}
-  @@types = {}
   @@models = {}
   @@custom_validations = {}
-  @@required_fields = {}
   @@protected_fields = []
-
   @@strict_mode = false
-  @@client_mode = false
 
+
+  def self.custom_validations
+    @@custom_validations
+  end
 
   def strict_mode(val)
     @@strict_mode = val
@@ -36,8 +37,7 @@ module JSONModel
   end
 
 
-  def JSONModel(source)
-
+  def self.JSONModel(source)
     # Checks if a model exists first; returns the model class
     # if it exists; returns false if it doesn't exist.
     if @@models.has_key?(source.to_s)
@@ -45,6 +45,10 @@ module JSONModel
     else
       false
     end
+  end
+
+  def JSONModel(source)
+    JSONModel.JSONModel(source)
   end
 
 
@@ -69,23 +73,50 @@ module JSONModel
 
 
   def self.destroy_model(type)
-    type = type.to_s
+    @@models.delete(type.to_s)
+  end
 
-    cls = @@models[type]
 
-    if cls
-      @@types.delete(cls)
-      @@schema.delete(cls)
-      @@custom_validations.delete(cls)
-      @@models.delete(type)
+  def self.load_schema(schema_name)
+    if not @@models[schema_name]
+      schema = File.join(File.dirname(__FILE__),
+                         "schemas",
+                         "#{schema_name}.rb")
+
+      old_verbose = $VERBOSE
+      $VERBOSE = nil
+      entry = eval(File.open(schema).read)
+      $VERBOSE = old_verbose
+
+      parent = entry[:schema]["parent"]
+      if parent
+        load_schema(parent)
+
+        base = @@models[parent].schema["properties"].clone
+        properties = base.merge(entry[:schema]["properties"])
+
+        entry[:schema]["properties"] = properties
+      end
+
+      # All records have a lock_version property that we use for optimistic concurrency control.
+      entry[:schema]["properties"]["lock_version"] = {"type" => ["integer", "string"], "required" => false}
+
+      # All records must indicate their model type
+      entry[:schema]["properties"]["jsonmodel_type"] = {"type" => "string", "ifmissing" => "error"}
+
+
+      self.create_model_for(schema_name, entry[:schema])
     end
   end
 
 
   def self.init(opts = {})
 
-    if opts.has_key?(:client_mode)
-      @@client_mode = opts[:client_mode]
+    @@init_args ||= nil
+
+    # Skip initialisation if this model has already been loaded.
+    if @@init_args
+      return true
     end
 
     if opts.has_key?(:strict_mode)
@@ -100,13 +131,7 @@ module JSONModel
                        "schemas",
                        "*.rb")).sort.each do |schema|
       schema_name = File.basename(schema, ".rb")
-
-      old_verbose = $VERBOSE
-      $VERBOSE = nil
-      entry = eval(File.open(schema).read)
-      $VERBOSE = old_verbose
-
-      self.create_model_for(schema_name, entry[:schema])
+      load_schema(schema_name)
     end
 
     require_relative "validations"
@@ -115,104 +140,76 @@ module JSONModel
   end
 
 
+  def self.parse_jsonmodel_ref(ref)
+    if ref.is_a? String and ref =~ /JSONModel\(:([a-zA-Z_\-]+)\) (.*)/
+      [$1.intern, $2]
+    else
+      nil
+    end
+  end
+
+
   protected
-
-
-  # Preprocess the schema to support ArchivesSpace extensions
-  def self.preprocess_schema(type, schema, path = [])
-    @@required_fields[type] ||= {}
-
-    if schema["type"] == "object"
-      schema["properties"].each do |property, defn|
-        if defn.has_key?("ifmissing")
-          if ["error", "warn"].include?(defn["ifmissing"])
-            defn["required"] = true
-
-            path_s = "#/" + path.join("/")
-            @@required_fields[type][path_s] ||= {}
-
-            @@required_fields[type][path_s][property] = defn["ifmissing"]
-          else
-            defn["required"] = false
-          end
-        end
-
-        self.preprocess_schema(type, defn, path + [property])
-      end
-    end
-  end
-
-
-  class ArchivesSpaceTypeAttribute < JSON::Schema::TypeAttribute
-    extend JSONModel
-
-    def self.validate(current_schema, data, fragments, validator, options = {})
-
-      types = current_schema.schema['type']
-
-      if types.is_a? String and types =~ /JSONModel\(:([a-zA-Z_\-]+)\) (.*)/
-        model = $1.intern
-        qualifier = $2
-
-        begin
-          if qualifier == 'uri'
-            raise if JSONModel(model).id_for(data, {}, true).nil?
-
-          elsif qualifier == 'uri_or_object'
-            if data.is_a? String
-              raise if JSONModel(model).id_for(data, {}, true).nil?
-            elsif data.is_a? Hash
-              exceptions = JSONModel(model).from_hash(data, false)._exceptions
-              raise if exceptions[:errors]
-            else
-              raise
-            end
-          end
-
-        rescue
-          message = "The property '#{build_fragment(fragments)}' of type #{data.class} did not match the following type: #{types}"
-          validation_error(message, fragments, current_schema, self, options[:record_errors])
-        end
-      else
-        super
-      end
-    end
-  end
-
-
-  class ArchivesSpaceSchema < JSON::Schema::Validator
-    def initialize
-      super
-      extend_schema_definition("http://json-schema.org/draft-03/schema#")
-      @attributes["type"] = ArchivesSpaceTypeAttribute
-      @uri = URI.parse("http://www.archivesspace.org/archivesspace.json")
-    end
-
-    JSON::Validator.register_validator(self.new)
-  end
-
 
   # Create and return a new JSONModel class called 'type', based on the
   # JSONSchema 'schema'
   def self.create_model_for(type, schema)
 
-    preprocess_schema(type, schema)
-
     cls = Class.new do
+
+      # Class instance variables store the bits specific to this model
+      def self.init(type, schema)
+        @record_type = type
+        @schema = schema
+      end
+
+
+      # If this class is subclassed, we won't be able to see our class instance
+      # variables unless we explicitly look up the inheritance chain.
+      def self.find_ancestor_class_instance(variable)
+        self.ancestors.each do |clz|
+          val = clz.instance_variable_get(variable)
+          return val if val
+        end
+
+        nil
+      end
+
+
+      # Return the JSON schema that defines this JSONModel class
+      def self.schema
+        find_ancestor_class_instance(:@schema)
+      end
+
+
+      # Return the type of this JSONModel class (a keyword like
+      # :archival_object)
+      def self.record_type
+        find_ancestor_class_instance(:@record_type)
+      end
+
 
       # Define accessors for all variable names listed in 'attributes'
       def self.define_accessors(attributes)
         attributes.each do |attribute|
 
           if not method_defined? "#{attribute}"
-            define_method "#{attribute}" do
-              @data[attribute]
+            if self.schema["properties"].has_key?(attribute) && self.schema["properties"][attribute]["type"] === "array"
+              define_method "#{attribute}" do
+                return [] if @data[attribute].nil?
+                @data[attribute]
+              end
+            else
+              define_method "#{attribute}" do
+                @data[attribute]
+              end
             end
           end
 
 
           if not method_defined? "#{attribute}="
             define_method "#{attribute}=" do |value|
+              @validated = false
               @data[attribute] = value
             end
           end
@@ -225,25 +222,24 @@ module JSONModel
       end
 
 
-      # Return the type of this JSONModel class (a keyword like
-      # :archival_object)
-      def self.record_type
-        self.lookup(@@types)
-      end
-
-
       # Add a custom validation to this model type.
       #
-      # The validation is a block that takes a hash of properties and an
-      # errors/warnings hash and adds any errors or warnings it finds.
-      def self.add_validation(&block)
-        @@custom_validations[self] ||= []
-        @@custom_validations[self] << block
+      # The validation is a block that takes a hash of properties and returns an array of pairs like:
+      # [["propertyname", "the problem with it"], ...]
+      def self.add_validation(name, &block)
+        raise "Validation name already taken: #{name}" if @@custom_validations[name]
+
+        @@custom_validations[name] = block
+
+        self.schema["validations"] ||= []
+        self.schema["validations"] << name
       end
 
 
       # Create an instance of this JSONModel from the data contained in 'hash'.
       def self.from_hash(hash, raise_errors = true)
+        hash["jsonmodel_type"] = self.record_type.to_s
+
         validate(hash, raise_errors)
 
         # Note that I don't use the cleaned version here.  We want to keep
@@ -267,6 +263,13 @@ module JSONModel
       #  might yield "/repositories/123/archival_objects/500"
       #
       def self.uri_for(id = nil, opts = {})
+
+        # Some schemas (like name schemas) don't have a URI because they don't
+        # need endpoints.  That's fine.
+        if not self.schema['uri']
+          return nil
+        end
+
         uri = self.schema['uri']
 
         if not id.nil?
@@ -284,7 +287,15 @@ module JSONModel
       #  might yield 500
       #
       def self.id_for(uri, opts = {}, noerror = false)
-        pattern = self.schema['uri'];
+        if not self.schema['uri']
+          if noerror
+            return nil
+          else
+            raise "Missing a URI definition for class #{self.class}"
+          end
+        end
+
+        pattern = self.schema['uri']
         pattern = pattern.gsub(/\/:[a-zA-Z_]+\//, '/[^/ ]+/')
 
         if uri =~ /#{pattern}\/([0-9]+)$/
@@ -299,8 +310,32 @@ module JSONModel
       end
 
 
+      # Return the type of the schema property defined by 'path'
+      #
+      # For example, type_of("names/items/type") might return a JSONModel class
+      def self.type_of(path)
+        type = JSONSchemaUtils.schema_path_lookup(self.schema, path)["type"]
+
+        ref = JSONModel.parse_jsonmodel_ref(type)
+
+        if ref
+          JSONModel.JSONModel(ref.first)
+        else
+          Kernel.const_get(type.capitalize)
+        end
+      end
+
+
+      def set_data(data)
+        hash = ASUtils.keys_as_strings(data)
+        hash["jsonmodel_type"] = self.class.record_type.to_s
+        hash = self.class.apply_schema_defaults(hash)
+
+        @data = hash
+      end
+
       def initialize(params = {}, warnings = [])
-        @data = self.class.keys_as_strings(params)
+        set_data(params)
         @warnings = warnings
 
         self.class.define_accessors(@data.keys)
@@ -313,6 +348,7 @@ module JSONModel
 
 
       def []=(key, val)
+        @validated = false
         @data[key.to_s] = val
       end
 
@@ -320,6 +356,8 @@ module JSONModel
       # Validate the current JSONModel instance and return a list of exceptions
       # produced.
       def _exceptions
+        return @validated if @validated
+
         exceptions = {}
         if not @always_valid
           exceptions = self.class.validate(@data, false).reject{|k, v| v.empty?}
@@ -329,10 +367,12 @@ module JSONModel
           exceptions[:errors] = (exceptions[:errors] or {}).merge(@errors)
         end
 
+        @validated = exceptions
         exceptions
       end
 
 
+      # Zap this?  A bit arbitrary
       def _warnings
         exceptions = self._exceptions
 
@@ -356,6 +396,7 @@ module JSONModel
       # Update the values of the current JSONModel instance with the contents of
       # 'params', validating before accepting the update.
       def update(params)
+        @validated = false
         replace(@data.merge(params))
       end
 
@@ -363,11 +404,12 @@ module JSONModel
       # Replace the values of the current JSONModel instance with the contents
       # of 'params', validating before accepting the replacement.
       def replace(params)
+        @validated = false
         @@protected_fields.each do |field|
           params[field] = @data[field]
         end
 
-        @data = params
+        set_data(params)
       end
 
 
@@ -375,11 +417,19 @@ module JSONModel
         "#<JSONModel(:#{self.class.record_type}) #{@data.inspect}>"
       end
 
+      def inspect
+        self.to_s
+      end
+
 
       # Produce a (possibly nested) hash from the values of this JSONModel.  Any
       # values that don't appear in the JSON schema will not appear in the
       # result.
-      def to_hash
+      def to_hash(raw = false)
+        return @data if raw
+
+        @validated = false
+
         cleaned = self.class.drop_unknown_properties(@data)
         self.class.validate(cleaned)
 
@@ -406,115 +456,127 @@ module JSONModel
       end
 
 
+      def self.map_hash_with_schema(hash, schema = nil, transformations = [])
+        if schema.nil?
+          return self.map_hash_with_schema(hash, self.schema, transformations)
+        end
+
+        return hash if not hash.is_a?(Hash)
+
+        if schema.is_a?(String)
+          ref = JSONModel.parse_jsonmodel_ref(schema)
+
+          if ref
+            # A nested reference to another data type.  Validate against it.
+            schema = JSONModel.JSONModel(ref[0]).schema
+          else
+            raise "Invalid schema given: #{schema}"
+          end
+        end
+
+        if schema["$ref"] == "#"
+          # A recursive schema.  Back to the beginning.
+          schema = self.schema
+        end
+
+        return hash if not schema.has_key?("properties")
+
+        transformations.each do |transform|
+          hash = transform.call(hash, schema)
+        end
+
+        result = {}
+
+        hash.each do |k, v|
+          k = k.to_s
+
+          if schema["properties"].has_key?(k) and (schema["properties"][k]["type"] == "object")
+            result[k] = self.map_hash_with_schema(v, schema["properties"][k], transformations)
+          elsif schema["properties"].has_key?(k) and (schema["properties"][k]["type"] == "array")
+
+            if schema["properties"][k]["items"]["type"].is_a?(Array)
+              # A list of multiple valid types.  Match them up based on the value of the 'jsonmodel_type' property
+              schema_types = schema["properties"][k]["items"]["type"].map {|type| type["type"]}
+
+              result[k] = v.collect {|elt|
+
+                if elt.is_a?(Hash)
+                  jsonmodel_type = elt["jsonmodel_type"]
+
+                  if !jsonmodel_type
+                    raise("Can't unambiguously match #{elt.inspect} against schema types: #{schema_types.inspect}. " +
+                          "Resolve this by adding a 'jsonmodel_type' property to #{elt.inspect}")
+                  end
+
+                  next_schema = schema_types.find {|type|
+                    (type.is_a?(String) && type.include?("JSONModel(:#{jsonmodel_type})")) ||
+                    (type.is_a?(Hash) && type["jsonmodel_type"] === jsonmodel_type)
+                  }
+
+                  if next_schema.nil?
+                    raise "Couldn't determine type of '#{elt.inspect}'.  Must be one of: #{schema_types.inspect}"
+                  end
+
+                  self.map_hash_with_schema(elt, next_schema, transformations)
+                elsif elt.is_a?(Array)
+                  raise "Nested arrays aren't supported here (yet)"
+                else
+                  elt
+                end
+              }
+            elsif schema["properties"][k]["items"]["type"] === "object"
+              result[k] = v.collect {|elt| self.map_hash_with_schema(elt, schema["properties"][k]["items"], transformations)}
+            else
+              # Just one valid type
+              result[k] = v.collect {|elt| self.map_hash_with_schema(elt, schema["properties"][k]["items"]["type"], transformations)}
+            end
+
+          elsif schema["properties"].has_key?(k) and JSONModel.parse_jsonmodel_ref(schema["properties"][k]["type"])
+            result[k] = self.map_hash_with_schema(v, schema["properties"][k]["type"], transformations)
+          else
+            result[k] = v
+          end
+        end
+
+        result
+      end
+
+
       ## Supporting methods following from here
       protected
 
-      # Return the JSON schema that defines this JSONModel class
-      def self.schema
-        self.lookup(@@schema)
-      end
-
-
-      # Find the entry for this JSONModel class in the supplied 'hash'.
-      def self.lookup(hash)
-        my_true_self = self.ancestors.find {|cls| hash[cls]}
-
-        if my_true_self
-          return hash[my_true_self]
-        end
-
-        return nil
-      end
-
-
-      # Given a (potentially nested) 'hash', remove any properties that don't
-      # appear in the JSON schema defining this JSONModel.
       def self.drop_unknown_properties(hash, schema = nil)
-        if schema.nil?
-          self.drop_unknown_properties(hash, self.schema)
-        else
-          if not hash.is_a?(Hash) or not schema.has_key?("properties")
-            return hash
-          end
-
+        fn = proc do |hash, schema|
           result = {}
 
-          if schema["$ref"] == "#"
-            # A recursive schema.  Back to the beginning.
-            schema = self.schema
-          end
-
           hash.each do |k, v|
-            k = k.to_s
-
-            if schema["properties"].has_key?(k)
-              if schema["properties"][k]["type"] == "object"
-                result[k] = self.drop_unknown_properties(v, schema["properties"][k])
-              elsif schema["properties"][k]["type"] == "array"
-                result[k] = v.collect {|elt| self.drop_unknown_properties(elt, schema["properties"][k]["items"])}
-              elsif v and v != ""
-                result[k] = v
-              end
+            if schema["properties"].has_key?(k.to_s) and v != "" and !v.nil?
+              result[k] = v
             end
           end
 
           result
         end
+
+        self.map_hash_with_schema(hash, schema, [fn])
       end
 
 
-      # Given a list of error messages produced by JSON schema validation, parse
-      # them into a structured format like:
-      #
-      # {
-      #   :errors => {:attr1 => "(What was wrong with attr1)"},
-      #   :warnings => {:attr2 => "(attr2 not quite right either)"}
-      # }
-      def self.parse_schema_messages(messages)
-        errors = {}
-        warnings = {}
+      def self.apply_schema_defaults(hash, schema = nil)
+        fn = proc do |hash, schema|
+          result = hash.clone
 
-        messages.each do |message|
+          schema["properties"].each do |property, definition|
 
-          if (message[:failed_attribute] == 'Properties' and
-              message[:message] =~ /The property '(.*?)' did not contain a required property of '(.*?)'.*/)
-
-            (path, property) = [$1, $2]
-
-            exception_type = @@required_fields[self.record_type].fetch(path, {})[property]
-
-            if exception_type == "error"
-              errors[property] = ["Property is required but was missing"]
-            else
-              warnings[property] = ["Property was missing"]
+            if definition.has_key?("default") and !hash.has_key?(property.to_s) and !hash.has_key?(property.intern)
+              result[property] = definition["default"]
             end
-
-          elsif (message[:failed_attribute] == 'Pattern' and
-                 message[:message] =~ /The property '#\/(.*?)' did not match the regex '(.*?)' in schema/)
-
-            errors[$1] = ["Did not match regular expression: #{$2}"]
-
-          elsif (message[:failed_attribute] == 'MinLength' and
-                 message[:message] =~ /The property '#\/(.*?)' was not of a minimum string length of ([0-9]+) in schema/)
-
-            errors[$1] = ["Must be at least #{$2} characters"]
-
-          elsif ((message[:failed_attribute] == 'Type' or message[:failed_attribute] == 'ArchivesSpaceType') and
-                 message[:message] =~ /The property '#\/(.*?)' of type (.*?) did not match the following type: (.*?) in schema/)
-
-            errors[$1] = ["Must be a #{$3} (you provided a #{$2})"]
-
-          else
-            puts "Failed to find a matching parse rule for: #{message}"
-            errors[:unknown] = ["Failed to find a matching parse rule for: #{message}"]
           end
 
+          result
         end
 
-        {
-          :errors => errors,
-          :warnings => warnings,
-        }
+        self.map_hash_with_schema(hash, schema, [fn])
       end
 
 
@@ -522,17 +584,18 @@ module JSONModel
       # a ValidationException if there are any fatal validation problems, or if
       # strict mode is enabled and warnings were produced.
       def self.validate(hash, raise_errors = true)
-        messages = JSON::Validator.fully_validate(self.schema,
-                                                  self.drop_unknown_properties(hash),
-                                                  :errors_as_objects => true)
 
-        exceptions = self.parse_schema_messages(messages)
+        JSON::Validator.cache_schemas = true
 
-        @@custom_validations[self].to_a.each do |validation|
-          validation.call(hash, exceptions)
-        end
+        validator = JSON::Validator.new(self.schema,
+                                        self.drop_unknown_properties(hash),
+                                        :errors_as_objects => true,
+                                        :record_errors => true)
 
-        if raise_errors and not exceptions[:errors].empty? or (@@strict_mode and not exceptions[:warnings].empty?)
+        messages = validator.validate
+        exceptions = JSONSchemaUtils.parse_schema_messages(messages, validator)
+
+        if raise_errors && (!exceptions[:errors].empty? || (@@strict_mode && !exceptions[:warnings].empty?))
           raise ValidationException.new(:invalid_object => self.new(hash),
                                         :warnings => exceptions[:warnings],
                                         :errors => exceptions[:errors])
@@ -568,35 +631,30 @@ module JSONModel
       end
 
 
-      def self.keys_as_strings(hash)
-        result = {}
-
-        hash.each do |key, value|
-          result[key.to_s] = value
-        end
-
-        result
-      end
-
-
-
-
-
       # In client mode, mix in some extra convenience methods for querying the
       # ArchivesSpace backend service via HTTP.
-      if @@client_mode
+      if @@init_args[:client_mode]
         require_relative 'jsonmodel_client'
         include JSONModel::Client
+      end
+
+    end
+
+
+    cls.init(type, schema)
+
+    cls.define_accessors(schema['properties'].keys)
+
+
+    @@models[type] = cls
+
+    cls.instance_eval do
+      (@@init_args[:mixins] or []).each do |mixin|
+        include(mixin)
       end
     end
 
 
-
-    cls.define_accessors(schema['properties'].keys)
-
-    @@types[cls] = type
-    @@schema[cls] = schema
-    @@models[type] = cls
   end
 
 
@@ -604,5 +662,8 @@ module JSONModel
     @@init_args
   end
 
-
 end
+
+
+# Custom JSON schema validations
+require_relative 'archivesspace_json_schema'

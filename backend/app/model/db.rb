@@ -2,11 +2,25 @@ class DB
 
   def self.connect
     if not @pool
-      @pool = Sequel.connect(AppConfig[:db_url],
-                             :max_connections => AppConfig[:db_max_connections],
-                             # :loggers => [Logger.new($stderr)]
-                             )
+      begin
+        pool = Sequel.connect(AppConfig[:db_url],
+                              :max_connections => AppConfig[:db_max_connections],
+                              :test => true,
+                              # :loggers => [Logger.new($stderr)]
+                              )
+
+        # Test if any tables exist
+        pool[:schema_info].all
+
+        @pool = pool
+      rescue
+        puts "DB connection failed: #{$!}"
+      end
     end
+  end
+
+  def self.connected?
+    not @pool.nil?
   end
 
 

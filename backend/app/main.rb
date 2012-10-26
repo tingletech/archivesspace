@@ -1,5 +1,9 @@
 require_relative 'lib/bootstrap'
 require_relative 'lib/rest'
+require_relative 'lib/crud_helpers'
+require_relative 'lib/export'
+require_relative 'lib/webrick_fix'
+require 'uri'
 
 require 'sinatra/base'
 require 'json'
@@ -8,6 +12,8 @@ require 'json'
 class ArchivesSpaceService < Sinatra::Base
 
   include RESTHelpers
+  include CrudHelpers
+
 
 
   configure :development do |config|
@@ -17,34 +23,80 @@ class ArchivesSpaceService < Sinatra::Base
     config.dont_reload File.join("app", "lib", "rest.rb")
     config.dont_reload File.join("**", "migrations", "*.rb")
     config.dont_reload File.join("**", "spec", "*.rb")
+    config.also_reload File.join("../", "migrations", "lib", "exporter.rb")
+    config.also_reload File.join("../", "migrations", "serializers", "*.rb")
   end
 
 
   configure do
 
+    JSONModel::init
+
     require_relative "model/db"
+
     DB.connect
+
+    unless DB.connected?
+      puts "\n============================================\n"
+      puts "DATABASE CONNECTION FAILED"
+      puts ""
+      puts "This system isn't going to do very much until its database turns up."
+      puts ""
+      puts "You will need to specify your database in:\n\n"
+      puts "  #{AppConfig.find_user_config}"
+      puts "\nor point your browser to the '/setup' URL on the backend (e.g. http://localhost:4567/setup)"
+      puts "\n============================================\n"
+    end
 
     # We'll handle these ourselves
     disable :sessions
 
-    # Load all models
-    require_relative "model/ASModel"
-    require_relative "model/identifiers"
-    require_relative "model/subjects"
-    Dir.glob(File.join(File.dirname(__FILE__), "model", "*.rb")).sort.each do |model|
-      basename = File.basename(model, ".rb")
-      require_relative File.join("model", basename)
-    end
+    if DB.connected?
+      # Load all models
+      require_relative "model/ASModel"
+      require_relative "model/identifiers"
+      require_relative "model/external_documents"
+      require_relative "model/subjects"
+      require_relative "model/extents"
+      require_relative "model/dates"
+      require_relative "model/rights_statements"
+      require_relative "model/instances"
+      require_relative "model/deaccessions"
 
-    # Load all controllers
-    Dir.glob(File.join(File.dirname(__FILE__), "controllers", "*.rb")).sort.each do |controller|
-      load File.absolute_path(controller)
+      Dir.glob(File.join(File.dirname(__FILE__), "model", "*.rb")).sort.each do |model|
+        basename = File.basename(model, ".rb")
+        require_relative File.join("model", basename)
+      end
+
+      # Load all controllers
+      Dir.glob(File.join(File.dirname(__FILE__), "controllers", "*.rb")).sort.each do |controller|
+        load File.absolute_path(controller)
+      end
+
+    else
+      # Just load the setup controller
+      load File.absolute_path(File.join(File.dirname(__FILE__), "controllers", "setup.rb"))
     end
 
     set :raise_errors, Proc.new { false }
     set :show_exceptions, false
     set :logging, false
+
+
+    if DB.connected?
+      ANONYMOUS_USER = AnonymousUser.new
+
+      require_relative "lib/bootstrap_access_control"
+
+      # Ensure that the frontend is registered
+      Array(AppConfig[:frontend_url]).each do |url|
+        Webhooks.add_listener(URI.join(url, "/webhook/notify").to_s)
+      end
+
+      Webhooks.start
+      Webhooks.notify("BACKEND_STARTED")
+    end
+
   end
 
 
@@ -88,12 +140,20 @@ class ArchivesSpaceService < Sinatra::Base
     json_response({:error => request.env['sinatra.error'].conflicts}, 409)
   end
 
+  error AccessDeniedException do
+    json_response({:error => "Access denied"}, 403)
+  end
+
   error Sequel::ValidationFailed do
-    json_response({:error => request.env['sinatra.error'].errors}, 409)
+    json_response({:error => request.env['sinatra.error'].errors}, 400)
   end
 
   error Sequel::DatabaseError do
-    json_response({:error => {:db_error => ["Database integrity constraint conflict: #{request.env['sinatra.error']}"]}}, 409)
+    json_response({:error => {:db_error => ["Database integrity constraint conflict: #{request.env['sinatra.error']}"]}}, 400)
+  end
+
+  error Sequel::Plugins::OptimisticLocking::Error do
+    json_response({:error => "The record you tried to update has been modified since you fetched it."}, 409)
   end
 
   error JSON::ParserError do
@@ -102,7 +162,12 @@ class ArchivesSpaceService < Sinatra::Base
 
 
   def session
-    @session
+    env[:aspace_session]
+  end
+
+
+  def current_user
+    env[:aspace_user]
   end
 
 
@@ -128,12 +193,29 @@ class ArchivesSpaceService < Sinatra::Base
 
 
     def json_response(obj, status = 200)
-      [status, {"Content-Type" => "application/json"}, [obj.to_json]]
+      [status, {"Content-Type" => "application/json"}, [obj.to_json + "\n"]]
     end
 
 
-    def created_response(id, warnings = {})
-      json_response({:status => "Created", :id => id, :warnings => warnings})
+    def modified_response(type, obj, jsonmodel = nil)
+      response = {:status => type, :id => obj[:id], :lock_version => obj[:lock_version]}
+
+      if jsonmodel
+        response[:uri] = jsonmodel.class.uri_for(obj[:id], :repo_id => params[:repo_id])
+        response[:warnings] = jsonmodel._warnings
+      end
+
+      json_response(response)
+    end
+
+
+    def created_response(*opts)
+      modified_response('Created', *opts)
+    end
+
+
+    def updated_response(*opts)
+      modified_response('Updated', *opts)
     end
 
   end
@@ -167,12 +249,21 @@ class ArchivesSpaceService < Sinatra::Base
         end
       end
 
-      @app.instance_eval {
-        @session = session
-      }
 
-      result = DB.open do
-        @app.call(env)
+      if DB.connected?
+        env[:aspace_user] = ANONYMOUS_USER
+
+        if session
+          env[:aspace_session] = session
+          env[:aspace_user] = ((session && session[:user] && User.find(:username => session[:user])) ||
+                               ANONYMOUS_USER)
+        end
+
+        result = DB.open do
+          @app.call(env)
+        end
+      else
+        result = @app.call(env)
       end
 
       end_time = Time.now
@@ -203,6 +294,7 @@ end
 
 if $0 == __FILE__
   Log.info("Dev server starting up...")
+
   ArchivesSpaceService.run!(:port => (ARGV[0] or 4567)) do |server|
     server.instance_eval do
       @config[:AccessLog] = []

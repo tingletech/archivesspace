@@ -1,3 +1,5 @@
+require 'memoryleak'
+
 class ApplicationController < ActionController::Base
   protect_from_forgery
 
@@ -9,8 +11,13 @@ class ApplicationController < ActionController::Base
   # Note: This should be first!
   before_filter :store_user_session
 
+  before_filter :refresh_permissions
+
   before_filter :load_repository_list
-  before_filter :load_default_vocabulary
+
+  before_filter :unauthorised_access
+
+  before_filter :sanitize_params
 
   protected
 
@@ -40,13 +47,54 @@ class ApplicationController < ActionController::Base
       # given.  Update it from the user's parameters
       model = opts[:model] || JSONModel(opts[:instance])
       obj = opts[:obj] || model.new
-      obj.replace(params[opts[:instance]])
+
+
+      fix_arrays = proc do |hash, schema|
+        result = hash.clone
+
+        schema['properties'].each do |property, definition|
+          if definition['type'] == 'array' and result[property].is_a?(Hash)
+            result[property] = result[property].sort_by {|k, _| k}.map {|_, v| v}
+          end
+        end
+
+        result
+      end
+
+
+      set_false_for_checkboxes = proc do |hash, schema|
+        result = hash.clone
+
+        schema['properties'].each do |property, definition|
+          if definition['type'] == 'boolean'
+            if not result.has_key?(property)
+              result[property] = false
+            else
+              result[property] = (result[property].to_i === 1)
+            end
+          end
+        end
+
+        result
+      end
+
+
+      instance = model.map_hash_with_schema(params[opts[:instance]],
+                                                                 nil,
+                                                                 [fix_arrays, set_false_for_checkboxes])
+
+      if opts[:replace] || opts[:replace].nil?
+        obj.replace(instance)
+      else
+        obj.update(instance)
+      end
 
       # Make the updated object available to templates
       instance_variable_set("@#{opts[:instance]}".intern, obj)
 
       if not params.has_key?(:ignorewarnings) and not obj._warnings.empty?
         # Throw the form back to the user to confirm warnings.
+        instance_variable_set("@exceptions".intern, obj._exceptions)
         return opts[:on_invalid].call
       end
 
@@ -54,10 +102,43 @@ class ApplicationController < ActionController::Base
       opts[:on_valid].call(id)
     rescue JSONModel::ValidationException => e
       # Throw the form back to the user to display error messages.
+      instance_variable_set("@exceptions".intern, obj._exceptions)
       opts[:on_invalid].call
     end
   end
 
+
+  def user_needs_to_be_a_viewer
+    render_403 if not user_can? 'view_repository'
+  end
+
+  def user_needs_to_be_an_archivist
+    render_403 if not user_can? 'update_repository'
+  end
+
+  def user_needs_to_be_a_manager
+    render_403 if not user_can? 'manage_repository'
+  end
+
+  helper_method :user_can?
+  def user_can?(permission, repository = nil)
+    repository ||= session[:repo]
+
+    (session &&
+     session[:user] &&
+     session[:permissions] &&
+
+     ((session[:permissions][repository] &&
+       session[:permissions][repository].include?(permission)) ||
+
+      (session[:permissions]['_archivesspace'] &&
+       session[:permissions]['_archivesspace'].include?(permission))))
+  end
+
+  helper_method :current_vocabulary
+  def current_vocabulary
+    MemoryLeak::Resources.get(:vocabulary).first.to_hash
+  end
 
   private
 
@@ -79,20 +160,34 @@ class ApplicationController < ActionController::Base
 
 
   def load_repository_list
-    @repositories = JSONModel(:repository).all
+    unless request.path == '/webhook/notify'
+      @repositories = MemoryLeak::Resources.get(:repository).find_all do |repository|
+        user_can?('view_repository', repository.repo_code) || user_can?('manage_repository', repository.repo_code)
+      end
 
-    if not session.has_key?(:repo) and not @repositories.empty?
-      session[:repo] = @repositories.first.repo_code.to_s
-      session[:repo_id] = @repositories.first.id
+      # Make sure the user's selected repository still exists.
+      if session[:repo] && !@repositories.any?{|repo| repo.repo_code == session[:repo]}
+        session.delete(:repo)
+        session.delete(:repo_id)
+      end
+
+      if not session[:repo] and not @repositories.empty?
+        session[:repo] = @repositories.first.repo_code.to_s
+        session[:repo_id] = @repositories.first.id
+      end
     end
-
   end
 
-  def load_default_vocabulary
-    if not session.has_key?(:vocabulary)
-      session[:vocabulary] = JSONModel(:vocabulary).all.first.to_hash
+
+  def refresh_permissions
+    unless request.path == '/webhook/notify'
+      if session[:last_permission_refresh] &&
+          session[:last_permission_refresh] < MemoryLeak::Resources.get(:acl_last_modified)
+        User.refresh_permissions(session)
+      end
     end
   end
+
 
   def choose_layout
     if inline?
@@ -100,6 +195,28 @@ class ApplicationController < ActionController::Base
     else
       'application'
     end
+  end
+
+
+  def sanitize_param(hash)
+    hash.clone.each do |k,v|
+      hash[k.sub("_attributes","")] = v if k.end_with?("_attributes")
+      sanitize_param(v) if v.kind_of? Hash
+    end
+  end
+
+
+  def sanitize_params
+    sanitize_param(params)
+  end
+
+  def unauthorised_access
+    render_403
+  end
+
+
+  def render_403
+    render "/403"
   end
 
 end

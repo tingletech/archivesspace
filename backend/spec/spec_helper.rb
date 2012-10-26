@@ -1,4 +1,18 @@
-if ENV['COVERAGE_REPORTS']
+require 'sinatra'
+
+require_relative '../app/lib/webhooks'
+
+class Webhooks
+  class << self
+    alias :notify_orig :notify
+  end
+
+  def self.notify(*ignored)
+  end
+end
+
+
+if ENV['COVERAGE_REPORTS'] == 'true'
   require 'tmpdir'
   require 'pp'
   require 'simplecov'
@@ -42,19 +56,18 @@ class DB
 end
 
 
-require_relative "../app/main"
-require 'sinatra'
 require 'rack/test'
+require_relative "../app/lib/bootstrap"
 
 JSONModel::init(:client_mode => true, :strict_mode => true,
                 :url => 'http://example.com')
-include JSONModel
 
-JSONModel::models.each do |type, cls|
-  class << cls
-    include Rack::Test::Methods
+module JSONModel
+  module HTTP
 
-    def _do_http_request(url, req)
+    extend Rack::Test::Methods
+
+    def self.do_http_request(url, req)
       send(req.method.downcase.intern, req.path, params = req.body)
 
       last_response.instance_eval do
@@ -66,11 +79,12 @@ JSONModel::models.each do |type, cls|
   end
 end
 
-# setup test environment
-set :environment, :test
-set :run, false
-set :raise_errors, true
-set :logging, false
+
+# Note: This import is loading JSONModel into the Object class.  Pretty gross!
+# It would be nice if we could narrow the scope of this to just the tests.
+include JSONModel
+
+require_relative "../app/main"
 
 Log.quiet_please
 
@@ -101,14 +115,39 @@ end
 
 
 def make_test_repo(code = "ARCHIVESSPACE")
-  repo = JSONModel(:repository).from_hash("repo_code" => code,
-                                          "description" => "A new ArchivesSpace repository")
-  id = repo.save
-  @repo = repo.uri
+  repo = Repository.create(:repo_code => code,
+                           :description => "A new ArchivesSpace repository")
 
-  JSONModel::set_repository(id)
+  @repo_id = repo.id
+  @repo = JSONModel(:repository).uri_for(repo.id)
 
-  id
+  JSONModel::set_repository(@repo_id)
+
+  @repo_id
+end
+
+
+def make_test_user(username, name = "A test user", source = "local")
+  User.create(:username => username, :name => name, :source => source)
+end
+
+
+
+class ArchivesSpaceService
+  def current_user
+    Thread.current[:active_test_user]
+  end
+end
+
+
+def as_test_user(username)
+  old_user = Thread.current[:active_test_user]
+  Thread.current[:active_test_user] = User.find(:username => username)
+  begin
+    yield
+  ensure
+    Thread.current[:active_test_user] = old_user
+  end
 end
 
 
@@ -118,7 +157,9 @@ RSpec.configure do |config|
   # Roll back the database after each test
   config.around(:each) do |example|
     DB.open(true) do
-      example.run
+      as_test_user("admin") do
+        example.run
+      end
       raise Sequel::Rollback
     end
   end

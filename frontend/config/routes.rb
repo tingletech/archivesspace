@@ -1,4 +1,8 @@
 ArchivesSpace::Application.routes.draw do
+
+  get "import/index"
+  post "import/upload"
+
   # The priority is based upon order of creation:
   # first created -> highest priority.
 
@@ -7,6 +11,8 @@ ArchivesSpace::Application.routes.draw do
   # Keep in mind you can assign values other than :controller and :action
   match 'login' => "session#login", :via => :post
   match 'logout' => "session#logout", :via => :get
+
+  match 'webhook/notify' => 'webhook#notify', :via => :post
 
   # Sample of named route:
   #   match 'products/:id/purchase' => 'catalog#purchase', :as => :purchase
@@ -22,18 +28,54 @@ ArchivesSpace::Application.routes.draw do
 
   resources :users
 
+  resources :groups
+  match 'groups/:id' => 'groups#update', :via => [:post]
+
   resources :accessions
+  match 'accessions/:id' => 'accessions#update', :via => [:post]
+
   resources :archival_objects
   match 'archival_objects/:id' => 'archival_objects#update', :via => [:post]
+
+  resources :digital_objects
+  match 'digital_objects/:id' => 'digital_objects#update', :via => [:post]
+  match 'digital_objects/:id/tree' => 'digital_objects#tree', :via => [:get]
+  match 'digital_objects/:id/update_tree' => 'digital_objects#update_tree', :via => [:post]
+
+  resources :digital_object_components
+  match 'digital_object_components/:id' => 'digital_object_components#update', :via => [:post]
 
   resources :resources
   match 'resources/:id/update_tree' => 'resources#update_tree', :via => [:post]
   match 'resources/:id/tree' => 'resources#tree', :via => [:get]
+  match 'resources/:id/download_ead' => 'exports#download_ead', :via => [:get]
   match 'resources/:id' => 'resources#update', :via => [:post]
+
 
   match 'subjects/list' => 'subjects#list', :via => [:get]
   resources :subjects
   match 'subjects/:id' => 'subjects#update', :via => [:post]
+
+  match 'locations/list' => 'locations#list', :via => [:get]
+  resources :locations
+  match 'locations/:id' => 'locations#update', :via => [:post]
+
+  match 'events/listrecords' => 'events#listrecords', :via => [:get]
+  resources :events
+  match 'events/:id' => 'events#update', :via => [:post]
+
+  match 'agents/list' => 'agents#list', :via => [:get]
+  match 'agents/contact_form' => 'agents#contact_form', :via => [:get]
+  match 'agents/:type/name_form' => 'agents#name_form', :via => [:get]
+  match 'agents/:type/create' => 'agents#create', :via => [:post]
+  match 'agents/:type/new' => 'agents#new', :via => [:get]
+  match 'agents/:type/:id/edit' => 'agents#edit', :via => [:get]
+  match 'agents/:type/:id/update' => 'agents#update', :via => [:post]
+  match 'agents/:type/:id' => 'agents#show', :via => [:get]
+  match 'agents' => 'agents#index', :via => [:get]
+
+  match 'test/shutdown' => 'tests#shutdown', :via => [:get]
+
 
   # Sample resource route with options:
   #   resources :products do

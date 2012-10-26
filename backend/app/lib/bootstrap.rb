@@ -1,13 +1,14 @@
 require 'rubygems'
 require 'sequel'
+require 'sequel/plugins/optimistic_locking'
 
 require_relative 'exceptions'
 require_relative 'logging'
 require_relative "../../../config/config-distribution"
 require_relative "../../../common/jsonmodel"
+require_relative "../../../common/asutils"
 require_relative "../model/db_migrator"
-
-JSONModel::init
+require_relative 'webhooks'
 
 
 

@@ -1,4 +1,7 @@
 class SubjectsController < ApplicationController
+  skip_before_filter :unauthorised_access, :only => [:index, :show, :list, :new, :edit, :create, :update]
+  before_filter :user_needs_to_be_a_viewer, :only => [:index, :show, :list]
+  before_filter :user_needs_to_be_an_archivist, :only => [:new, :edit, :create, :update]
 
   def index
     @subjects = Subject.all
@@ -23,7 +26,7 @@ class SubjectsController < ApplicationController
   end
 
   def new
-    @subject = Subject.new({:vocab_id => JSONModel(:vocabulary).id_for(session[:vocabulary]["uri"])})._always_valid!
+    @subject = Subject.new({:vocab_id => JSONModel(:vocabulary).id_for(current_vocabulary["uri"])})._always_valid!
     render :partial => "subjects/new" if inline?
   end
 

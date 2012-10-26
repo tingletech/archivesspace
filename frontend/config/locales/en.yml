@@ -1,33 +1,493 @@
 en:
-   accession:
-      accession_date: Accession Date
-      accession_id: Identifier
-      id_0: Identifier
-      content_description: Content Description
-      condition_description: Condition Description
-      publish: Publish?
-      publish_help: Check this if you wish to publish this accession to the public.
-      restrictions: Restrictions?
+  digital_object:
+    title: Title
+    digital_object_id: Identifier
+    publish: Publish?
+    level: Level
+    level_collection: Collection
+    level_work: Work
+    level_image: Image
+    digital_object_type: Type
+    digital_object_type_cartographic: Cartographic
+    digital_object_type_mixed_materials: Mixed Materials
+    digital_object_type_moving_image: Moving Image
+    digital_object_type_notated_music: Notated Music
+    digital_object_type_software_multimedia: Software, Multimedia
+    digital_object_type_sound_recording: Sound Recording
+    digital_object_type_sound_recording_musical: Sound Recording (Musical)
+    digital_object_type_sound_recording_nonmusical: Sound Recording (Non-musical)
+    digital_object_type_still_image: Still Image
+    digital_object_type_text: Text
+    language: Language
+    restrictions: Restrictions?
+  digital_object_component:
+    label: Label
+    title: Title
+    component_id: Identifier
+    publish: Publish
+    language: Language
+  location:
+    temporary: Temporary
+    temporary_conservation: Conservation
+    temporary_exhibit: Exhibit
+    temporary_loan: Loan
+    temporary_reading_room: Reading Room
+    building: Building
+    floor: Floor
+    room: Room
+    area: Area
+    barcode: Barcode
+    classification: Classification
+    coordinate_1_label: Coordinate Label 1
+    coordinate_1_indicator: Coordinate Indicator 1
+    coordinate_2_label: Coordinate Label 2
+    coordinate_2_indicator: Coordinate Indicator 2
+    coordinate_3_label: Coordinate Label 3
+    coordinate_3_indicator: Coordinate Indicator 3
+  container_location:
+    status: Status
+    status_current: Current
+    status_previous: Previous
+    start_date: Start Date
+    end_date: End Date
+    note: Note
+    location: Location
+    _html:
+      singular: Location
+      plural: Locations
+  linked_record:
+    role: Role
+    role_source: Source
+    role_outcome: Outcome
+    role_transfer: Transfer
+    _html:
+      singular: Record Link
+      plural: Record Links
+  linked_agent:
+    role: Role
+    role_authorizer: Authorizer
+    role_executing_program: Executing Program
+    role_implementer: Implementer
+    role_recipient: Recipient
+    role_transmitter: Transmitter
+    role_validator: Validator
+    _html:
+      singular: Agent Link
+      plural: Agent Links
+  event:
+    event_type: Type
+    outcome: Outcome
+    outcome_note: Outcome Note
+    event_type_accession: Accession
+    event_type_accumulation: Accumulation
+    event_type_acknowledgement: Acknowledgement
+    event_type_agreement received: Agreement Received
+    event_type_agreement sent: Agreement Sent
+    event_type_appraisal: Appraisal
+    event_type_assessment: Assessment
+    event_type_capture: Capture
+    event_type_cataloging: Cataloging
+    event_type_collection: Collection
+    event_type_compression: Compression
+    event_type_contribution: Contribution
+    event_type_custody transfer: Custody Transfer
+    event_type_deaccession: Deaccession
+    event_type_decompression: Decompression
+    event_type_decryption: Decryption
+    event_type_deletion: Deletion
+    event_type_digital signature validation: Digital Signature Validation
+    event_type_fixity check: Fixity Check
+    event_type_ingestion: Ingestion
+    event_type_message digest calculation: Message Digest Calculation
+    event_type_migration: Migration
+    event_type_normalization: Normalization
+    event_type_processing: Processing
+    event_type_publication: Publication
+    event_type_replication: Replication
+    event_type_resource merge: Resource Merge
+    event_type_resource component transfer: Resource Component Transfer
+    event_type_validation: Validation
+    event_type_virus check: Virus Check
+  deaccession:
+    whole_part: Whole (or Part)
+    description: Description
+    reason: Reason
+    disposition: Disposition
+    notification: Notification Given?
+    dates: Dates
+    _html:
+      plural: Deaccessions
+      singular: Deaccession
+  agent_person_name:
+    authority_id: Authority ID
+    source: Source
+    rules: Rules
+    direct_order: Direct Order
+    prefix: Prefix
+    title: Title
+    primary_name: Primary Name
+    rest_of_name: Rest of Name
+    suffix: Suffix
+    fuller_form: Fuller Form
+    number: Number
+    dates: Dates
+    qualifier: Qualifier
+    sort_name: Sort Name
+    description_type: Description Type
+    description_note: Description Note
+    description_citation: Description Citation
+  agent_family_name:
+    authority_id: Authority ID
+    source: Source
+    rules: Rules
+    prefix: Prefix
+    family_name: Family Name
+    dates: Dates
+    qualifier: Qualifier
+    sort_name: Sort Name
+    description_type: Description Type
+    description_note: Description Note
+    description_citation: Description Citation
+  agent_corporate_entity_name:
+    authority_id: Authority ID
+    source: Source
+    rules: Rules
+    primary_name: Primary Name
+    subordinate_name_1: Subordinate Name 1
+    subordinate_name_2: Subordinate Name 2
+    number: Number
+    dates: Dates
+    qualifier: Qualifier
+    sort_name: Sort Name
+    description_type: Description Type
+    description_note: Description Note
+    description_citation: Description Citation
+  agent_software_name:
+    authority_id: Authority ID
+    source: Source
+    rules: Rules
+    software_name: Software Name
+    version: Version
+    manufacturer: Manufacturer
+    dates: Dates
+    qualifier: Qualifier
+    sort_name: Sort Name
+    description_type: Description Type
+    description_note: Description Note
+    description_citation: Description Citation
+  agent_contact_details:
+    name: Contact Description
+    salutation: Salutation
+    address_1: Address 1
+    address_2: Address 2
+    address_3: Address 3
+    city: City
+    region: Region
+    country: Country
+    post_code: Post Code
+    telephone: Telephone
+    telephone_ext: Telephone Extension
+    fax: Fax
+    email: Email
+  notes: &note_attributes
+    note_index:
+      option: Index
+      label: Label
+      content: Content
+      items: Items
+    index_item:
+      value: Value
+      type: Type
+      reference: Reference
+      reference_text: Reference Text
+    note_singlepart:
+      label: Label
+      content: Content
+      type: Type
+    note_multipart:
+      label: Label
+      type: Type
+      content: Content
+    note_bibliography:
+      option: Bibliography
+      label: Label
+      content: Content
+      items: Items
+    note_chronology:
+      option: Chronology
       title: Title
-   archival_object:
+      items: Items
+    chronology_item:
+      event_date: Event Date
+      events: Events
+    note_definedlist:
+      option: Defined List
       title: Title
-      ref_id: Ref ID
-      "[:resource_id, :ref_id]": Ref ID
-   resource:
+      items: Items
+    definedlist_item:
+      label: Label
+      value: Value
+    note_orderedlist:
+      option: Ordered List
       title: Title
-      id_0: Identifier
-      "[:id_0, :id_1, :id_2, :id_3]": Identifier
-      "[:repo_id, :identifier]": Identifier
-      identifier: Identifier
-   repository:
-      repo_code: Repository code
-      description: Description
-   subject:
-      term: Term
-      term_type: Type
-   createuser:
-      username: Username
-      name: Your full name
-      password: Password
-      confirm_password: Confirm your password
-      passwords: Passwords
+      enumeration: Enumeration
+      items: Items
+  <<: *note_attributes
+  container: &container_attributes
+    type_1: Type 1
+    indicator_1: Indicator 1
+    barcode_1: Barcode 1
+    type_2: Type 2
+    indicator_2: Indicator 2
+    type_3: Type 3
+    indicator_3: Indicator 3
+    _html:
+      plural: Containers
+      singular: Container
+  instance: &instance_attributes
+    instance_type: Type
+    instance_type_audio: Audio
+    instance_type_books: Books
+    instance_type_computer_disks: Computer Disks
+    instance_type_digital_object: Digital Object
+    instance_type_digital_object_link: Digital Object Link
+    instance_type_graphic_materials: Graphic Materials
+    instance_type_maps: Maps
+    instance_type_microform: Microform
+    instance_type_mixed_materials: Mixed Materials
+    instance_type_moving_images: Moving Images
+    instance_type_realia: Realia
+    instance_type_text: Text
+    _container:
+      <<: *container_attributes
+    _html:
+      plural: Instances
+      singular: Instance
+  extent: &extent_attributes
+    portion: Portion
+    portion_whole: Whole
+    portion_part: Part
+    number: Number
+    extent_type: Type
+    extent_type_cassettes: Cassettes
+    extent_type_cubic_feet: Cubic Feet
+    extent_type_leafs: Leafs
+    extent_type_linear_feet: Linear Feet
+    extent_type_photographic_prints: Photographic Prints
+    extent_type_photographic_slides: Photographic Slides
+    extent_type_reels: Reels
+    extent_type_sheets: Sheets
+    extent_type_volumes: Volumes
+    container_summary: Container Summary
+    physical_details: Physical Details
+    dimensions: Dimensions
+    _html:
+      plural: Extents
+      singular: Extent
+  external_document: &external_document_attributes
+    title: Title
+    location: Location
+    _html:
+      plural: External Documents
+      singular: External Document
+  rights_statement: &rights_statement_attributes
+    identifier: Identifier
+    rights_type: Rights Type
+    rights_type_intellectual_property: Intellectual Property
+    rights_type_license: License
+    rights_type_statute: Statute
+    rights_type_institutional_policy: Institutional Policy
+    active: Active
+    active_true: Active
+    active_false: Inactive
+    materials: Materials
+    ip_status: IP Status
+    ip_status_copyrighted: Copyrighted
+    ip_status_public_domain: Public Domain
+    ip_status_unknown: Unknown
+    ip_expiration_date: IP Expiration Date
+    license_identifier_terms: License Identifier Terms
+    statute_citation: Statute Citation
+    jurisdiction: Jurisdiction
+    type_note: Type Note
+    permissions: Permissions
+    restrictions: Restrictions
+    restriction_start_date: Restrictions Start Date
+    restriction_end_date: Restrictions End Date
+    granted_note: Granted Note
+    _external_documents:
+      <<: *external_document_attributes
+    _html:
+      plural: Rights Statements
+      singular: Rights Statement
+  date: &date_attributes
+    label: Label
+    label_broadcast: Broadcast
+    label_copyright: Copyright
+    label_creation: Creation
+    label_deaccession: Deaccession
+    label_digitized: Digitized
+    label_issued: Issued
+    label_modified: Modified
+    label_publication: Publication
+    label_other: Other
+    date_type: Type
+    date_type_expression: Expression
+    date_type_single: Single
+    date_type_bulk: Bulk Dates
+    date_type_inclusive: inclusive Dates
+    expression: Expression
+    begin: Begin
+    begin_time: Begin Time
+    end: End
+    end_time: End Time
+    uncertain: Uncertainty
+    uncertain_approximate: Approximate
+    uncertain_inferred: Inferred
+    uncertain_questionable: Questionable
+    era: Era
+    era_ce: ce
+    calendar: Calendar
+    calendar_gregorian: Gregorian
+    _html:
+      plural: Dates
+      singular: Date
+  accession:
+    accession_date: Accession Date
+    accession_id: Identifier
+    id_0: Identifier
+    content_description: Content Description
+    condition_description: Condition Description
+    publish: Publish?
+    publish_help: Check this if you wish to publish this accession to the public.
+    restrictions: Restrictions?
+    title: Title
+    _extents:
+      <<: *extent_attributes
+    _dates:
+      <<: *date_attributes
+    _external_documents:
+      <<: *external_document_attributes
+    _rights_statements:
+      <<: *rights_statement_attributes
+  agent: &agent_attributes
+    type: Agent Type
+    agent_type:
+      agent_family: Family
+      agent_person: Person
+      agent_corporate_entity: Corporate Entity
+      agent_software: Software
+    names: Names
+    _names:
+      authority_id: Authority ID
+      primary_name: Primary Name
+      prefix: Prefix
+      title: Title
+      rest_of_name: Rest of Name
+      suffix: Suffix
+      fuller_form: Fuller Form      
+      number: Number
+      dates: Dates
+      qualifier: Qualifier
+      sort_name: Sort Name
+      description_type: Description Type
+      description_note: Description Note
+      description_citation: Description Citation
+      family_name: Family Name
+      direct_order: Direct Order
+      direct_order_standard: Primary Name, Rest of Name
+      direct_order_inverted: Rest of Name _ Primary Name
+      subordinate_name_1: Subordinate Name 1
+      subordinate_name_2: Subordinate Name 2
+      software_name: Software Name
+      version: Version
+      manufacturer: Manufacturer
+      source: Source
+      source_local: Local sources (local)
+      source_naf: NACO Authority File (naf)
+      source_nad: NAD / ARK II Name Authority Database (nad)
+      source_ulan: Union List of Artist Names (ulan)
+      rules: Rules
+      rules_local: Local rules (local)
+      rules_aacr: Anglo-American Cataloging Rules (aacr)
+      rules_dacs: "Describing Archives: A Content Standard (dacs)"
+    _agent_contacts:
+      name: Contact Description
+      salutation: Salutation
+      address_1: Address Line 1
+      address_2: Address Line 2
+      address_3: Address Line 3
+      city: City
+      region: Region
+      country: Country
+      post_code: Mail Code
+      telephone: Telephone Number
+      telephone_ext: Telephone Ext.
+      fax: Fax Number
+      email: Email Address
+    _external_documents:
+      <<: *external_document_attributes
+  agent_person:
+    <<: *agent_attributes
+  agent_family:
+    <<: *agent_attributes
+  agent_corporate_entity:
+    <<: *agent_attributes
+  agent_software:
+    <<: *agent_attributes
+  archival_object:
+    title: Title
+    ref_id: Ref ID
+    "[:resource_id, :ref_id]": Ref ID
+    _extents:
+      <<: *extent_attributes
+    _dates:
+      <<: *date_attributes
+    _external_documents:
+      <<: *external_document_attributes
+    _rights_statements:
+      <<: *rights_statement_attributes
+  group:
+    group_code: Group code
+    description: Description
+    members: Members
+    permissions: "Members can:"
+    permission_types:
+        manage_repository: manage this repository (change groups and other settings)
+        update_repository: create/modify/delete records in this repository
+        view_repository: view the records in this repository
+  resource:
+    title: Title
+    id_0: Identifier
+    "[:id_0, :id_1, :id_2, :id_3]": Identifier
+    "[:repo_id, :identifier]": Identifier
+    identifier: Identifier
+    extents: Extents
+    _extents:
+      <<: *extent_attributes
+    _dates:
+      <<: *date_attributes
+    _external_documents:
+      <<: *external_document_attributes
+    _rights_statements:
+      <<: *rights_statement_attributes
+    _instances:
+      <<: *instance_attributes
+  repository:
+    repo_code: Repository code
+    description: Description
+  term: &term_attributes
+    term: Term
+    term_type: Type
+  subject:
+    terms: Terms
+    _terms:
+      <<: *term_attributes
+    _external_documents:
+      <<: *external_document_attributes
+  user:
+    username: Username
+    name: Your full name
+    password: Password
+    confirm_password: Confirm your password
+    passwords: Passwords

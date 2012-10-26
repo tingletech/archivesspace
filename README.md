@@ -23,8 +23,10 @@ If you'd like to use different ports, you can run:
 
     java -jar launcher/archivesspace.jar [frontend port] [backend port]
 
-To create a test account and log in, you'll currently need to use
-curl:
+Note: If you have already run the service in demo mode, you may need to remove the existing demo database in order to avoid a 'java.sql.SQLException: Failed to create database' error:
 
-    username=$USER
-    curl -v -F password=testuser "http://localhost:8089/auth/local/user/$username"
+		build/run db:nuke
+
+# Documentation
+
+Latest documentation is published at [http://hudmol.github.com/archivesspace/](http://hudmol.github.com/archivesspace/)

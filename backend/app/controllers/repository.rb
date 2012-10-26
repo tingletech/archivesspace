@@ -3,11 +3,12 @@ class ArchivesSpaceService < Sinatra::Base
   Endpoint.post('/repositories')
     .description("Create a Repository")
     .params(["repository", JSONModel(:repository), "The repository to create", :body => true])
+    .preconditions(proc { current_user.can?(:create_repository) })
     .returns([200, :created],
-             [400, :error]) \
+             [400, :error],
+             [403, :access_denied]) \
   do
-    repo = Repository.create_from_json(params[:repository])
-    created_response(repo[:id])
+    handle_create(Repository, :repository)
   end
 
 
@@ -17,8 +18,9 @@ class ArchivesSpaceService < Sinatra::Base
     .returns([200, "(:repository)"],
              [404, '{"error":"Repository not found"}']) \
   do
-    Repository.to_jsonmodel(Repository.get_or_die(params[:id]),
-                            :repository).to_json
+    json_response(Repository.to_jsonmodel(Repository.get_or_die(params[:id]),
+                                          :repository,
+                                          :none))
   end
 
 
@@ -26,9 +28,8 @@ class ArchivesSpaceService < Sinatra::Base
     .description("Get a list of Repositories")
     .returns([200, "[(:repository)]"]) \
   do
-    json_response(Repository.collect {|repo|
-                    Repository.to_jsonmodel(repo, :repository).to_hash
-                  })
+    handle_listing(Repository, :repository,
+                   :hidden => 0)
   end
 
 end

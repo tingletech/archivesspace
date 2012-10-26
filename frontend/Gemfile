@@ -29,6 +29,8 @@ gem 'json-schema'
 
 gem 'markaby'
 
+gem "jruby-jars", "= 1.7.0.rc2"
+
 gem 'warbler'
 
 # To use ActiveModel has_secure_password
@@ -45,3 +47,16 @@ gem 'warbler'
 
 # To use debugger
 # gem 'debugger'
+
+gem 'atomic'
+
+# Importing requirements
+
+gem 'nokogiri'
+
+# For queuing batch import jobs
+
+#gem 'delayed_job_active_record'
+
+gem 'simplecov'
+

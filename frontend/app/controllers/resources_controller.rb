@@ -1,11 +1,14 @@
 class ResourcesController < ApplicationController
+  skip_before_filter :unauthorised_access, :only => [:index, :show, :tree, :new, :edit, :create, :update, :update_tree]
+  before_filter :user_needs_to_be_a_viewer, :only => [:index, :show, :tree]
+  before_filter :user_needs_to_be_an_archivist, :only => [:new, :edit, :create, :update, :update_tree]
 
   def index
     @resources = JSONModel(:resource).all
   end
 
   def show
-    @resource = JSONModel(:resource).find(params[:id], "resolve[]" => "subjects")
+    @resource = JSONModel(:resource).find(params[:id], "resolve[]" => ["subjects", "location"])
 
     if params[:inline]
       return render :partial => "resources/show_inline"
@@ -16,10 +19,11 @@ class ResourcesController < ApplicationController
 
   def new
     @resource = JSONModel(:resource).new({:title => "New Resource"})._always_valid!
+    @resource.extents = [JSONModel(:extent).new._always_valid!]
   end
 
   def edit
-    @resource = JSONModel(:resource).find(params[:id], "resolve[]" => "subjects")
+    @resource = JSONModel(:resource).find(params[:id], "resolve[]" => ["subjects", "location"])
 
     if params[:inline]
       return render :partial => "resources/edit_inline"
@@ -32,16 +36,19 @@ class ResourcesController < ApplicationController
   def create
     handle_crud(:instance => :resource,
                 :on_invalid => ->(){ render action: "new" },
-                :on_valid => ->(id){ redirect_to(:controller => :resources,
+                :on_valid => ->(id){
+                  flash[:success] = "Resource Created"
+                  redirect_to(:controller => :resources,
                                                  :action => :edit,
-                                                 :id => id) })
+                                                 :id => id)
+                 })
   end
 
 
   def update
     handle_crud(:instance => :resource,
                 :obj => JSONModel(:resource).find(params[:id],
-                                                  "resolve[]" => "subjects"),
+                                                  "resolve[]" => ["subjects", "location"]),
                 :on_invalid => ->(){
                   render :partial => "edit_inline"
                 },

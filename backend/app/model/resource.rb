@@ -1,8 +1,14 @@
-class Resource < Sequel::Model(:resources)
+class Resource < Sequel::Model(:resource)
   plugin :validation_helpers
   include ASModel
   include Identifiers
   include Subjects
+  include Extents
+  include Dates
+  include ExternalDocuments
+  include RightsStatements
+  include Instances
+  include Deaccessions
 
 
   def link(opts)
@@ -14,21 +20,19 @@ class Resource < Sequel::Model(:resources)
 
 
   def assemble_tree(node, links, properties)
-    result = properties[node]
+    result = JSONModel(:resource_tree).new(properties[node])
 
-    result[:archival_object] = JSONModel(:archival_object).uri_for(result[:id],
-                                                                   :repo_id => self.repo_id)
-    result.delete(:id)
-
+    result.archival_object = JSONModel(:archival_object).uri_for(result[:id],
+                                                                 :repo_id => self.repo_id)
     if links[node]
-      result[:children] = links[node].map do |child_id|
+      result.children = links[node].map do |child_id|
         assemble_tree(child_id, links, properties)
       end
     else
-      result[:children] = []
+      result.children = []
     end
 
-    result
+    result.to_hash
   end
 
 
@@ -56,7 +60,7 @@ class Resource < Sequel::Model(:resources)
 
 
   def update_tree(tree)
-    Resource.db[:archival_objects].
+    Resource.db[:archival_object].
              filter(:resource_id => self.id).
              update(:parent_id => nil)
 
@@ -82,5 +86,34 @@ class Resource < Sequel::Model(:resources)
     end
   end
 
+
+  def self.create_from_json(json, opts = {})
+    notes_blob = JSON(json.notes)
+    json.notes = nil
+    super(json, opts.merge(:notes => notes_blob))
+  end
+
+
+  def update_from_json(json, opts = {})
+    notes_blob = JSON(json.notes)
+    json.notes = nil
+    super(json, opts.merge(:notes => notes_blob))
+  end
+
+
+  def self.sequel_to_jsonmodel(obj, type, opts = {})
+    notes = JSON.parse(obj.notes || "[]")
+    obj[:notes] = nil
+    json = super
+    json.notes = notes
+
+    json
+  end
+
+
+  def self.records_matching(query, max)
+    self.where(Sequel.like(Sequel.function(:lower, :title),
+                           "#{query}%".downcase)).first(max)
+  end
 
 end

@@ -72,13 +72,19 @@ module ArchivesSpace
   end
 
 
-  # Used by the launcher to set the backend URL on the fly.
-  if java.lang.System.get_property("ARCHIVESSPACE_BACKEND")
-    Application.config.backend_url = java.lang.System.get_property("ARCHIVESSPACE_BACKEND")
-  end
-
   class SessionGone < StandardError
   end
 
+end
+
+
+
+if ENV['COVERAGE_REPORTS'] == 'true'
+  require 'tmpdir'
+  require 'pp'
+  require 'simplecov'
+
+  SimpleCov.command_name 'Frontend tests'
+  SimpleCov.start 'rails'
 end
 

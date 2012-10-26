@@ -1,55 +1,25 @@
-<%= render "shared/form_messages", :object => @accession %>
+<%= render :partial => "shared/form_messages", :locals => {:object => @accession, :form => form} %>
 
-<fieldset>
-   <%= f.label_field_pair :title %>
-   <%= f.label_and_fourpartid :id_0 %>
-   <%= f.label_field_pair :accession_date, f.text_field(:accession_date, :placeholder => "YYYY-MM-DD", :value => (@accession.accession_date.blank? ? "" : Date.strptime(@accession.accession_date, "%Y-%m-%d"))) %>
-   <%= f.label_field_pair :content_description, f.text_area(:content_description, :rows => 3) %>
-   <%= f.label_field_pair :condition_description, f.text_area(:condition_description, :rows => 3) %>
-   
-    <hr />
-    
-    <div class="control-group">
-       <%= f.label :resource_link, "Link to a Resource", :class => "control-label" %>
-      <div class="controls">
-      <div class="accordion controls-accordion" id="resource_link">
-         <div class="accordion-group">
-            <label class="radio" data-toggle="collapse" data-parent="#resource_link" href="#resource_link_defer">
-               <%= f.radio_button :resource_link, "defer" %> Defer linking to a Resource
-            </label>
-           <div id="resource_link_defer" class="accordion-body collapse">
-             <div class="accordion-inner">
-                <div class="alert alert-info">
-                  Create this Accession without a Collecion.  You can create that link later.
-                </div>
-             </div>
-           </div>
-         </div>
-         <div class="accordion-group">
-             <label class="radio" data-toggle="collapse" data-parent="#resource_link" href="#resource_link_existing">
-                <%= f.radio_button :resource_link, "existing" %> Existing Resource
-             </label>
-           <div id="resource_link_existing" class="accordion-body collapse">
-             <div class="accordion-inner">
-                <div class="alert alert-error">
-                  TODO!
-                </div>
-             </div>
-           </div>
-         </div>
-         <div class="accordion-group">
-             <label class="radio" data-toggle="collapse" data-parent="#resource_link" href="#resource_link_create">
-                <%= f.radio_button :resource_link, "create" %> Create a new Resource
-             </label>
-           <div id="resource_link_create" class="accordion-body collapse">
-             <div class="accordion-inner">
-                <div class="alert alert-info">
-                   Create this Accession and Continue to Create a new Resource.
-                </div>
-             </div>
-           </div>
-         </div>
-       </div>
-    </div>
-   </div>
-</fieldset>
+<section id="basic_information">
+  <h3>Basic Information</h3>
+  <fieldset>
+     <%= form.label_and_textfield "title" %>
+     <%= form.label_and_fourpartid %>
+     <%= form.label_and_date "accession_date", {:field_opts => {:value => (@accession.accession_date.blank? ? "" : Date.strptime(@accession.accession_date, "%Y-%m-%d"))}} %>
+     <%= form.label_and_textarea "content_description" %>
+     <%= form.label_and_textarea "condition_description" %>
+     <%= render :partial => "subjects/linker", :locals => { :form => form }%>
+  </fieldset>
+</section>
+
+
+<%= render :partial => "shared/subrecord_form", :locals => {:form => form, :name => "extents"} %>
+<%= render :partial => "shared/subrecord_form", :locals => {:form => form, :name => "dates"} %>
+<%= render :partial => "shared/subrecord_form", :locals => {:form => form, :name => "external_documents"} %>
+<%= render :partial => "shared/subrecord_form", :locals => {:form => form, :name => "rights_statements"} %>
+<%= render :partial => "shared/subrecord_form", :locals => {:form => form, :name => "deaccessions"} %>
+
+<div class="form-actions">            
+  <button type="submit" class="btn btn-primary">Save Accession</button>
+  <%= link_to "Cancel", :back, :class => "btn btn-cancel" %>
+</div>

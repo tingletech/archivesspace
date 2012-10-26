@@ -17,7 +17,24 @@ class ArchivesSpaceService < Sinatra::Base
     user = User.create_from_json(params[:user], :source => "local")
     DBAuth.set_password(params[:user].username, params[:password])
 
-    created_response(user[:id], params[:user]._warnings)
+    created_response(user, params[:user])
+  end
+
+
+  Endpoint.get('/users/:username')
+    .description("Get a user's details (including their current permissions)")
+    .params(["username", nil, "The username of interest"])
+    .returns([200, "(:user)"]) \
+  do
+    user = User[:username => params[:username].downcase]
+
+    if user
+      json = User.to_jsonmodel(user, :user, :none)
+      json.permissions = user.permissions
+      json_response(json)
+    else
+      raise NotFoundException.new("User wasn't found")
+    end
   end
 
 
@@ -34,7 +51,7 @@ class ArchivesSpaceService < Sinatra::Base
 
     if user and DBAuth.login(username, params[:password])
       session = create_session_for(username)
-      json_response({:session => session.id})
+      json_response({:session => session.id, :permissions => user.permissions})
     else
       json_response({:error => "Login failed"}, 403)
     end

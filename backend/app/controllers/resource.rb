@@ -4,11 +4,10 @@ class ArchivesSpaceService < Sinatra::Base
     .description("Create a Resource")
     .params(["resource", JSONModel(:resource), "The resource to create", :body => true],
             ["repo_id", :repo_id])
-    .returns([200, :created]) \
+    .returns([200, :created],
+             [400, :error]) \
   do
-    resource = Resource.create_from_json(params[:resource], :repo_id => params[:repo_id])
-
-    created_response(resource[:id], params[:resource]._warnings)
+    handle_create(Resource, :resource)
   end
 
 
@@ -22,7 +21,7 @@ class ArchivesSpaceService < Sinatra::Base
   do
     json = Resource.to_jsonmodel(params[:resource_id], :resource, params[:repo_id])
 
-    json_response(resolve_references(json, params[:resolve]))
+    json_response(resolve_references(json.to_hash, params[:resolve]))
   end
 
 
@@ -49,12 +48,10 @@ class ArchivesSpaceService < Sinatra::Base
     .params(["resource_id", Integer, "The ID of the resource to retrieve"],
             ["resource", JSONModel(:resource), "The resource to update", :body => true],
             ["repo_id", :repo_id])
-    .returns([200, :updated]) \
+    .returns([200, :updated],
+             [400, :error]) \
   do
-    resource = Resource.get_or_die(params[:resource_id], params[:repo_id])
-    resource.update_from_json(params[:resource])
-
-    json_response({:status => "Updated", :id => resource[:id]})
+    handle_update(Resource, :resource_id, :resource)
   end
 
 
@@ -68,7 +65,7 @@ class ArchivesSpaceService < Sinatra::Base
     resource = Resource.get_or_die(params[:resource_id], params[:repo_id])
     resource.update_tree(params[:tree])
 
-    json_response({:status => "Updated", :id => resource[:id]})
+    updated_response(resource, params[:tree])
   end
 
 
@@ -77,8 +74,7 @@ class ArchivesSpaceService < Sinatra::Base
     .params(["repo_id", :repo_id])
     .returns([200, "[(:resource)]"]) \
   do
-    json_response(Resource.filter({:repo_id => params[:repo_id]}).collect {|coll|
-                    Resource.to_jsonmodel(coll, :resource).to_hash})
+    handle_listing(Resource, :resource, :repo_id => params[:repo_id])
   end
 
 end

@@ -14,6 +14,11 @@
       "resource" => {"type" => "JSONModel(:resource) uri", "required" => false},
 
       "subjects" => {"type" => "array", "items" => {"type" => "JSONModel(:subject) uri_or_object"}},
+      "extents" => {"type" => "array", "items" => {"type" => "JSONModel(:extent) object"}},
+      "dates" => {"type" => "array", "items" => {"type" => "JSONModel(:date) object"}},
+      "external_documents" => {"type" => "array", "items" => {"type" => "JSONModel(:external_document) object"}},
+      "rights_statements" => {"type" => "array", "items" => {"type" => "JSONModel(:rights_statement) object"}},
+      "instances" => {"type" => "array", "items" => {"type" => "JSONModel(:instance) object"}},
     },
 
     "additionalProperties" => false,

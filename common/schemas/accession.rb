@@ -16,7 +16,14 @@
       "content_description" => {"type" => "string", "ifmissing" => "warn"},
       "condition_description" => {"type" => "string", "ifmissing" => "warn"},
 
-      "accession_date" => {"type" => "date", "minLength" => 1, "ifmissing" => "error"}
+      "accession_date" => {"type" => "date", "minLength" => 1, "ifmissing" => "error"},
+
+      "subjects" => {"type" => "array", "items" => {"type" => "JSONModel(:subject) uri_or_object"}},
+      "extents" => {"type" => "array", "items" => {"type" => "JSONModel(:extent) object"}},
+      "dates" => {"type" => "array", "items" => {"type" => "JSONModel(:date) object"}},
+      "external_documents" => {"type" => "array", "items" => {"type" => "JSONModel(:external_document) object"}},
+      "rights_statements" => {"type" => "array", "items" => {"type" => "JSONModel(:rights_statement) object"}},
+      "deaccessions" => {"type" => "array", "items" => {"type" => "JSONModel(:deaccession) object"}},
     },
 
     "additionalProperties" => false,

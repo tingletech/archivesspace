@@ -1,15 +1,7 @@
 class ArchivalObjectsController < ApplicationController
-
-  def index
-    @archival_objects = JSONModel(:archival_object).all
-  end
-
-  def show
-    @archival_object = JSONModel(:archival_object).find(params[:id], "resolve[]" => "subjects")
-    @resource_id = params[:resource_id] if params.has_key?(:resource_id)
-
-    render :partial => "archival_objects/show_inline"
-  end
+  skip_before_filter :unauthorised_access, :only => [:index, :show, :new, :edit, :create, :update]
+  before_filter :user_needs_to_be_a_viewer, :only => [:index, :show]
+  before_filter :user_needs_to_be_an_archivist, :only => [:new, :edit, :create, :update]
 
   def new
     @archival_object = JSONModel(:archival_object).new._always_valid!
@@ -24,7 +16,7 @@ class ArchivalObjectsController < ApplicationController
   end
 
   def edit
-    @archival_object = JSONModel(:archival_object).find(params[:id], "resolve[]" => "subjects")
+    @archival_object = JSONModel(:archival_object).find(params[:id], "resolve[]" => ["subjects", "location"])
     render :partial => "archival_objects/edit_inline" if inline?
   end
 
@@ -32,13 +24,17 @@ class ArchivalObjectsController < ApplicationController
   def create
     handle_crud(:instance => :archival_object,
                 :on_invalid => ->(){ render :partial => "new_inline" },
-                :on_valid => ->(id){ render :partial => "archival_objects/edit_inline" })
+                :on_valid => ->(id){
+                  flash[:success] = "Archival Object Created"
+                  render :partial => "archival_objects/edit_inline"
+                })
   end
+
 
   def update
     handle_crud(:instance => :archival_object,
                 :obj => JSONModel(:archival_object).find(params[:id],
-                                                         "resolve[]" => "subjects"),
+                                                         "resolve[]" => ["subjects", "location"]),
                 :on_invalid => ->(){ return render :partial => "edit_inline" },
                 :on_valid => ->(id){
                   flash[:success] = "Archival Object Saved"
@@ -47,24 +43,9 @@ class ArchivalObjectsController < ApplicationController
   end
 
 
-  private
-
-  def find_node(children, id)
-    children.each do |child|
-      return child if child['id'] === id
-      result = find_node(child['children'], id)
-      return result if result.kind_of? Hash
-    end
+  def show
+    @resource_id = params['resource_id']
+    @archival_object = JSONModel(:archival_object).find(params[:id], "resolve[]" => ["subjects", "location"])
+    render :partial => "archival_objects/show_inline" if inline?
   end
-
-  def find_parent_node(tree, id)
-    tree['children'].each do |child|
-      return tree['id'] if child['id'].to_s === id.to_s
-
-      result = find_parent_node(child, id)
-      return result if not result.blank?
-    end
-    nil
-  end
-
 end

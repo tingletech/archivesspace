@@ -21,6 +21,7 @@ def do_post(s, url)
   Net::HTTP.start(url.host, url.port) do |http|
     req = Net::HTTP::Post.new(url.request_uri)
     req.body = s
+    req["X-ARCHIVESSPACE-SESSION"] = @session if @session
 
     r = http.request(req)
 
@@ -32,6 +33,7 @@ end
 def do_get(url)
   Net::HTTP.start(url.host, url.port) do |http|
     req = Net::HTTP::Get.new(url.request_uri)
+    req["X-ARCHIVESSPACE-SESSION"] = @session if @session
     r = http.request(req)
 
     {:body => JSON(r.body), :status => r.code}
@@ -46,6 +48,12 @@ end
 
 
 def run_tests
+
+  puts "Create an admin session"
+  r = do_post(URI.encode_www_form(:password => "admin"),
+              url("/users/admin/login"))
+
+  @session = r[:body]["session"] or fail("Admin login", r)
 
   puts "Create a repository"
   r = do_post({
@@ -102,7 +110,8 @@ def run_tests
   r = do_post({
                 :title => "integration test resource",
                 :id_0 => "abc123",
-                :subjects => ["/subjects/#{subject_id}"]
+                :subjects => ["/subjects/#{subject_id}"],
+                :extents => [{"portion" => "whole", "number" => "5 or so", "extent_type" => "reels"}]
               }.to_json,
               url("/repositories/#{repo_id}/resources"))
 
@@ -168,17 +177,6 @@ def main
     server = TestUtils::start_backend($port)
   end
 
-  while true
-    begin
-      Net::HTTP.get(URI($url))
-      break
-    rescue
-      # Keep trying
-      # puts "Waiting for backend (#{$!.inspect})"
-      sleep(5)
-    end
-  end
-
   status = 0
   begin
     run_tests
@@ -190,11 +188,6 @@ def main
 
   if server
     TestUtils::kill(server)
-    begin
-      Process.waitpid(server)
-    rescue
-      # Already dead.
-    end
   end
 
   exit(status)

@@ -3,8 +3,7 @@ require 'spec_helper'
 describe 'ArchivalObject model' do
 
   before(:each) do
-    @repo = Repository.create(:repo_code => "TESTREPO",
-                              :description => "My new test repository").id
+    make_test_repo
   end
 
 
@@ -12,7 +11,7 @@ describe 'ArchivalObject model' do
     ArchivalObject.create_from_json(JSONModel(:archival_object).
                                     from_hash({ "ref_id" => "abcd",
                                                 "title" => "A new archival object"}),
-                                    :repo_id => @repo)
+                                    :repo_id => @repo_id)
   end
 
 
@@ -20,6 +19,68 @@ describe 'ArchivalObject model' do
     ao = create_archival_object
 
     ArchivalObject[ao[:id]].title.should eq("A new archival object")
+  end
+
+
+  it "Allows archival objects to be created with an extent" do
+    ao = ArchivalObject.create_from_json(JSONModel(:archival_object).
+                                    from_hash({ 
+                                                "ref_id" => "abcd",
+                                                "title" => "A new archival object",
+                                                "extents" => [{
+                                                  "portion" => "whole",
+                                                  "number" => "5 or so",
+                                                  "extent_type" => "reels",
+                                                }]
+                                              }),
+                                    :repo_id => @repo_id)
+    ArchivalObject[ao[:id]].extent.length.should eq(1)
+    ArchivalObject[ao[:id]].extent[0].extent_type.should eq("reels")
+  end
+
+
+  it "Allows archival objects to be created with a date" do
+    ao = ArchivalObject.create_from_json(JSONModel(:archival_object).
+                              from_hash({
+                                          "ref_id" => "abcd",
+                                          "title" => "A new archival object",
+                                          "dates" => [
+                                            {
+                                               "date_type" => "single",
+                                               "label" => "creation",
+                                               "begin" => "2012-05-14",
+                                               "end" => "2012-05-14",
+                                            }
+                                          ]
+                                        }),
+                              :repo_id => @repo_id)
+
+    ArchivalObject[ao[:id]].date.length.should eq(1)
+    ArchivalObject[ao[:id]].date[0].begin.should eq("2012-05-14")
+  end
+
+
+  it "can be created with an instance" do
+    ao = ArchivalObject.create_from_json(JSONModel(:archival_object).
+                                           from_hash({
+                                                       "ref_id" => "abcd",
+                                                       "title" => "A new archival object",
+                                                       "instances" => [
+                                                         {
+                                                           "instance_type" => "text",
+                                                           "container" => {
+                                                             "type_1" => "A Container",
+                                                             "indicator_1" => "555-1-2",
+                                                             "barcode_1" => "00011010010011",
+                                                           }
+                                                         }
+                                                       ]
+                                                     }),
+                                         :repo_id => @repo_id)
+
+    ArchivalObject[ao[:id]].instance.length.should eq(1)
+    ArchivalObject[ao[:id]].instance[0].instance_type.should eq("text")
+    ArchivalObject[ao[:id]].instance[0].container.first.type_1.should eq("A Container")
   end
 
 end

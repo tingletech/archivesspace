@@ -36,7 +36,7 @@ describe 'Subject model' do
                                                    "vocabulary" => JSONModel(:vocabulary).uri_for(@vocab_id)
                                                  }))
 
-    Subject[subject[:id]].terms[0].id.should eq(term_id)
+    Subject[subject[:id]].term[0].id.should eq(term_id)
   end
 
 
@@ -56,11 +56,34 @@ describe 'Subject model' do
                                                    "vocabulary" => JSONModel(:vocabulary).uri_for(@vocab_id)
                                                  }))
 
-    Subject[subject[:id]].terms[0].id.should eq(term_id_0)
-    Subject[subject[:id]].terms[1].id.should eq(term_id_1)
-    Subject[subject[:id]].terms[2].id.should eq(term_id_2)
-    Subject[subject[:id]].terms[3].id.should eq(term_id_3)
+    Subject[subject[:id]].term[0].id.should eq(term_id_0)
+    Subject[subject[:id]].term[1].id.should eq(term_id_1)
+    Subject[subject[:id]].term[2].id.should eq(term_id_2)
+    Subject[subject[:id]].term[3].id.should eq(term_id_3)
   end
 
+
+  it "ensures unique subjects may only be created" do
+    term_id_0 = createTerm.id
+    term_id_1 = createTerm.id
+    subject_a = Subject.create_from_json(JSONModel(:subject).
+                                         from_hash({
+                                                     "terms" => [
+                                                       JSONModel(:term).uri_for(term_id_0),
+                                                       JSONModel(:term).uri_for(term_id_1),
+                                                     ],
+                                                     "vocabulary" => JSONModel(:vocabulary).uri_for(@vocab_id)
+                                                   }))
+    expect {
+      subject_b = Subject.create_from_json(JSONModel(:subject).
+                                           from_hash({
+                                                       "terms" => [
+                                                         JSONModel(:term).uri_for(term_id_0),
+                                                         JSONModel(:term).uri_for(term_id_1),
+                                                       ],
+                                                       "vocabulary" => JSONModel(:vocabulary).uri_for(@vocab_id)
+                                                     }))
+     }.to raise_error(Sequel::ValidationFailed)
+  end
 
 end

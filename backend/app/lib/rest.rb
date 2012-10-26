@@ -3,30 +3,42 @@ module RESTHelpers
   include JSONModel
 
 
-  def resolve_references(json, resolve)
-    hash = json.to_hash
+  def resolve_reference(uri)
+    if !JSONModel.parse_reference(uri).nil?
+      JSON(redirect_internal(uri)[2].join(""))
+    else
+      uri
+    end
+  end
 
-    hash['resolved'] ||= {}
+  def resolve_references(value, properties_to_resolve)
+    return value if properties_to_resolve.nil?
 
-    (resolve or []).each do |property|
-      if hash[property]
-        if hash[property].is_a? Array
-          hash['resolved'][property] = hash[property].map do |uri|
-            JSON(redirect_internal(uri)[2].join(""))
-          end
+    if value.is_a? Hash
+      resolved = {}
+
+      value.each do |k, v|
+        if properties_to_resolve.include?(k)
+          resolved[k] = (v.is_a? Array) ? v.map {|elt| resolve_reference(elt)} : resolve_reference(v)
         else
-          hash['resolved'][property] = JSON(redirect_internal(hash[property])[2].join(""))
+          resolve_references(v, properties_to_resolve)
         end
       end
+
+      value['resolved'] = resolved if !resolved.empty?
+
+    elsif value.is_a? Array
+      value.each {|elt| resolve_references(elt, properties_to_resolve)}
     end
 
-    hash
+    value
   end
 
 
   class Endpoint
 
     @@endpoints = []
+
 
     @@param_types = {
       :repo_id => [Integer,
@@ -44,8 +56,15 @@ module RESTHelpers
       @method = method
       @uri = ""
       @description = "-- No description provided --"
+      @preconditions = []
       @required_params = []
       @returns = []
+    end
+    
+    def [](key)
+      if instance_variable_defined?("@#{key}")
+        instance_variable_get("@#{key}")
+      end
     end
 
     def self.all
@@ -68,11 +87,24 @@ module RESTHelpers
 
     def uri(uri); @uri = uri; self; end
     def description(description); @description = description; self; end
+    def preconditions(*preconditions); @preconditions += preconditions; self; end
 
     def params(*params)
       @required_params = params.map do |p|
         @@param_types[p[1]] ? [p[0], @@param_types[p[1]]].flatten : p
       end
+
+      # A special case for repo_id since it's so prevalent: if the repo_id is
+      # provided, add a check to make sure the requesting user has permission
+      # to view this repository
+      if @required_params.any?{|param| param.first == 'repo_id'}
+        if @method == :get
+          @preconditions << proc { |request| current_user.can?(:view_repository, :repo_id => request.params[:repo_id]) }
+        elsif @method == :post
+          @preconditions << proc { |request| current_user.can?(:update_repository, :repo_id => request.params[:repo_id]) }
+        end
+      end
+
       self
     end
 
@@ -81,6 +113,7 @@ module RESTHelpers
 
       @@endpoints << self
 
+      preconditions = @preconditions
       rp = @required_params
       uri = @uri
       method = @method
@@ -100,14 +133,35 @@ module RESTHelpers
       end
 
       ArchivesSpaceService.send(@method, @uri, {}) do
-        ensure_params(rp)
-
         if self.class.development?
           Log.debug("#{method.to_s.upcase} #{uri}")
           Log.debug("Request parameters: #{filter_passwords(params).inspect}")
         end
 
+        ensure_params(rp)
+
+        Log.debug("Post-processed params: #{params.inspect}") if self.class.development?
+
+        unless preconditions.all? { |precondition| self.instance_eval &precondition }
+          raise AccessDeniedException.new("Access denied")
+        end
+
         self.instance_eval &block
+      end
+    end
+  end
+
+
+  class BooleanParam
+    def self.value(s)
+      if s.nil?
+        nil
+      elsif s.downcase == 'true'
+        true
+      elsif s.downcase == 'false'
+        false
+      else
+        raise "Invalid boolean value: #{s}"
       end
     end
   end
@@ -122,6 +176,8 @@ module RESTHelpers
       def coerce_type(value, type)
         if type == Integer
           Integer(value)
+        elsif type == BooleanParam
+          BooleanParam.value(value)
         elsif type.respond_to? :from_json
           type.from_json(value)
         elsif type.is_a? Array
@@ -130,6 +186,9 @@ module RESTHelpers
           else
             raise ArgumentError.new("Not an array")
           end
+        elsif type.is_a? Regexp
+          raise "Value '#{value}' didn't match #{type}" if value !~ type
+          value
         else
           value
         end
@@ -144,16 +203,20 @@ module RESTHelpers
           :failed_validation => []
         }
 
+        known_params = {}
+
         declared_params.each do |definition|
 
           (name, type, doc, opts) = definition
           opts ||= {}
 
+          known_params[name] = true
+
           if opts[:body]
             params[name] = request.body.read
           end
 
-          if not params[name] and not opts[:optional]
+          if not params[name] and not opts[:optional] and not opts[:default]
             errors[:missing] << {:name => name, :doc => doc}
           else
 
@@ -165,6 +228,9 @@ module RESTHelpers
               rescue ArgumentError
                 errors[:bad_type] << {:name => name, :doc => doc, :type => type}
               end
+            elsif type and opts[:default]
+              params[name.intern] = opts[:default]
+              params.delete(name)
             end
 
             if opts[:validation]
@@ -175,6 +241,15 @@ module RESTHelpers
 
           end
         end
+
+
+        # Any params that were passed in that aren't declared by our endpoint get dropped here.
+        unknown_params = params.keys.reject {|p| known_params[p.to_s] }
+
+        unknown_params.each do |p|
+          params.delete(p)
+        end
+
 
         if not errors.values.flatten.empty?
           result = {}

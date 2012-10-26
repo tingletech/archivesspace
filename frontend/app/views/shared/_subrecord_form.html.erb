@@ -1,0 +1,23 @@
+<%
+  singular = name.singularize
+  section_id = form.id_for(name) if section_id.blank?
+  heading_size = "h3" if heading_size.blank?
+  js_template_name = "template_#{singular}" if js_template_name.blank?
+%>
+
+<%= render :partial=>"#{name.to_s}/template", :locals => {:form => form} %>
+
+<section id="<%= section_id %>" class="subrecord-form" data-subrecord-form="true" data-object-name="<%= singular %>" data-template="<%= js_template_name %>">
+
+  <<%= heading_size %> class="subrecord-form-heading">
+    <%= I18n.t("#{singular}._html.plural") %>
+    <input type="button" class="btn btn-small pull-right" value="Add <%= I18n.t("#{singular}._html.singular") %>"/>
+  </<%= heading_size %>>
+
+  <div class="subrecord-form-container">
+    <%= form.list_for(form[name], "#{name}[]") do |item| %>
+      <% form.emit_template(singular, item) %>
+    <% end %>
+  </div>
+
+</section>
