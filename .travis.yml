@@ -10,13 +10,13 @@ rvm:
   - jruby-19mode
 
 jdk:
-  - openjdk7
-  - oraclejdk7
   - openjdk6
 
 before_script:
   # http://about.travis-ci.org/docs/user/gui-and-headless-browsers/
+  - "export DISPLAY=:99.0"
   - "/sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -ac -screen 0 1280x1024x16"
+
 script:
   - build/run bootstrap
   - build/run backend:test
