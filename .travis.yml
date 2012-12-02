@@ -12,18 +12,13 @@ rvm:
 jdk:
   - openjdk6
 
-before_script:
-  # http://about.travis-ci.org/docs/user/gui-and-headless-browsers/
-  - "export DISPLAY=:99.0"
-  - "/sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -ac -screen 0 1280x1024x16"
-
 script:
   - build/run bootstrap
   - build/run backend:test
   - build/run backend:integration
   - build/run common:test
   - build/run dist
-  - build/run selenium:test
+  - xvfb-run --server-args="-screen 0 1024x768x24" ./build/run selenium:test
 
 notifications:
   irc: "irc.freenode.org#archivesspace"
