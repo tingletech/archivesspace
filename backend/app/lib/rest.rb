@@ -5,11 +5,12 @@ module RESTHelpers
 
   def resolve_reference(uri)
     if !JSONModel.parse_reference(uri).nil?
-      JSON(redirect_internal(uri)[2].join(""))
+      JSON.parse(redirect_internal(uri)[2].join(""), :max_nesting => false)
     else
       uri
     end
   end
+
 
   def resolve_references(value, properties_to_resolve)
     return value if properties_to_resolve.nil?
@@ -49,6 +50,7 @@ module RESTHelpers
     @@return_types = {
       :created => '{:status => "Created", :id => (id of created object), :warnings => {(warnings)}}',
       :updated => '{:status => "Updated", :id => (id of updated object)}',
+      :suppressed => '{:status => "Suppressed", :id => (id of updated object), :suppressed_state => (true|false)}',
       :error => '{:error => (description of error)}'
     }
 
@@ -60,11 +62,23 @@ module RESTHelpers
       @required_params = []
       @returns = []
     end
-    
+
     def [](key)
       if instance_variable_defined?("@#{key}")
         instance_variable_get("@#{key}")
       end
+    end
+
+    def self.pagination
+      [["page_size",
+        PageSize,
+        "The number of results to show per page",
+        :default => 10],
+       ["page", NonNegativeInteger, "The page number to show"],
+       ["modified_since",
+        NonNegativeInteger,
+        "The page number to show",
+        :default => 0]]
     end
 
     def self.all
@@ -99,9 +113,9 @@ module RESTHelpers
       # to view this repository
       if @required_params.any?{|param| param.first == 'repo_id'}
         if @method == :get
-          @preconditions << proc { |request| current_user.can?(:view_repository, :repo_id => request.params[:repo_id]) }
+          @preconditions << proc { |request| current_user.can?(:view_repository) }
         elsif @method == :post
-          @preconditions << proc { |request| current_user.can?(:update_repository, :repo_id => request.params[:repo_id]) }
+          @preconditions << proc { |request| current_user.can?(:update_repository) }
         end
       end
 
@@ -133,21 +147,63 @@ module RESTHelpers
       end
 
       ArchivesSpaceService.send(@method, @uri, {}) do
-        if self.class.development?
-          Log.debug("#{method.to_s.upcase} #{uri}")
-          Log.debug("Request parameters: #{filter_passwords(params).inspect}")
-        end
 
         ensure_params(rp)
 
-        Log.debug("Post-processed params: #{params.inspect}") if self.class.development?
+        Log.debug("Post-processed params: #{Log.filter_passwords(params).inspect}")
 
-        unless preconditions.all? { |precondition| self.instance_eval &precondition }
-          raise AccessDeniedException.new("Access denied")
+        RequestContext.open(:repo_id => params[:repo_id]) do
+          unless preconditions.all? { |precondition| self.instance_eval &precondition }
+            raise AccessDeniedException.new("Access denied")
+          end
+
+          result = DB.open do
+
+            # If the current user is a manager, show them suppressed records
+            # too.
+            if RequestContext.get(:repo_id)
+              RequestContext.put(:enforce_suppression,
+                                 !(current_user.can?(:manage_repository) ||
+                                   current_user.can?(:view_suppressed)))
+            end
+
+            self.instance_eval &block
+          end
         end
-
-        self.instance_eval &block
       end
+    end
+  end
+
+
+  class NonNegativeInteger
+    def self.value(s)
+      val = Integer(s)
+
+      if val < 0
+        raise ArgumentError.new("Invalid non-negative integer value: #{s}")
+      end
+
+      val
+    end
+  end
+
+
+  class PageSize
+    def self.value(s)
+      val = Integer(s)
+
+      if val < 0
+        raise ArgumentError.new("Invalid non-negative integer value: #{s}")
+      end
+
+      if val > AppConfig[:max_page_size].to_i
+        Log.warn("Requested page size of #{val} exceeds the maximum allowable of #{AppConfig[:max_page_size]}." +
+                 "  It has been reduced to the maximum.")
+
+        val = AppConfig[:max_page_size].to_i
+      end
+
+      val
     end
   end
 
@@ -161,7 +217,7 @@ module RESTHelpers
       elsif s.downcase == 'false'
         false
       else
-        raise "Invalid boolean value: #{s}"
+        raise ArgumentError.new("Invalid boolean value: #{s}")
       end
     end
   end
@@ -176,8 +232,6 @@ module RESTHelpers
       def coerce_type(value, type)
         if type == Integer
           Integer(value)
-        elsif type == BooleanParam
-          BooleanParam.value(value)
         elsif type.respond_to? :from_json
           type.from_json(value)
         elsif type.is_a? Array
@@ -187,8 +241,10 @@ module RESTHelpers
             raise ArgumentError.new("Not an array")
           end
         elsif type.is_a? Regexp
-          raise "Value '#{value}' didn't match #{type}" if value !~ type
+          raise ArgumentError.new("Value '#{value}' didn't match #{type}") if value !~ type
           value
+        elsif type.respond_to? :value
+          type.value(value)
         else
           value
         end

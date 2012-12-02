@@ -19,6 +19,18 @@
    </div>
 --></div>
 
+<div id="confirmation_modal_template"><!--
+   <div class="modal-body">
+      {if defined(message) && message.length > 0}
+        ${message}
+      {/if}
+   </div>
+   <div class="modal-footer">
+      <button id="confirmButton" class="btn btn-primary">Confirm</button>
+      <button class="btn btn-cancel" data-dismiss="modal">Cancel</button>
+   </div>
+--></div>
+
 <div id="linker_browsemodal_template"><!--
    <div class="modal-body linker-container">
       <div class="linker-list"></div>
@@ -103,4 +115,28 @@
       <button class="btn btn-small btn-primary confirm-removal">Confirm Removal</button>
      </div>
    </div>
+--></div>
+
+<div id="mixed_content_wrap_action_template"><!--
+  <div class="mixed-content-wrapper popover bottom">
+    <div class="arrow"></div>
+    <div class="popover-inner">
+      <div class="popover-content">
+        <label>Wrap with:
+          <select class="mixed-content-wrap-action">
+            <option></option>
+            {for tag in tags}
+              <option>${tag.tag}</option>
+            {/for}
+          </select>
+        </label>
+      </div>
+    </div>
+  </div>
+--></div>
+
+<div id="mixed_content_help_template"><!--
+  <div class="mixed-content-help">
+    Mixed Content Enabled&#160;&#160;--&#160;&#160;Type '<' for elements or highlight text to wrap
+  </div>
 --></div>

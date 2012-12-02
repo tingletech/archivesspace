@@ -13,9 +13,10 @@ module Identifiers
     # variables on this instance.
     if self[:identifier]
       identifier = self[:identifier].split("_")
+
       4.times do |i|
         self.instance_eval {
-          @values[:"id_#{i}"] = identifier[i]
+          @values[:"id_#{i}"] = identifier[i] if identifier[i] and !identifier[i].empty?
         }
 
         instance_variable_set("@id_#{i}", identifier[i])
@@ -29,6 +30,11 @@ module Identifiers
     # Combine the identifier into a single string and remove the instance variables we added previously.
     self.identifier = (0...4).map {|i| instance_variable_get("@id_#{i}")}.join("_")
 
+    if self.identifier =~ /^_+$/
+      # None of the id_* fields were set, so the whole identifier is NULL.
+      self.identifier = nil
+    end
+
     4.times do |i|
       self.instance_eval {
         @values.delete(:"id_#{i}")
@@ -40,6 +46,8 @@ module Identifiers
 
 
   def validate
+    return super if self.class.table_name === :resource and self.identifier.nil?
+
     validates_unique([:repo_id, :identifier], :message => "That ID is already in use")
     map_validation_to_json_property([:repo_id, :identifier], :id_0)
     super

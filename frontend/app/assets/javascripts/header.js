@@ -71,4 +71,24 @@ $(function() {
       $("> a", $(this).parents(".dropdown-submenu:first")).focus();
     }
   });
+
+
+  // Search form handling
+  $(".nav .scoped-search-options a").click(function() {
+    var $form = $(this).parents("form:first");
+    $(":input[name='type']", $form).val($(this).data("type"));
+    $form.submit();
+  });
+
+
+  // Repo/User label sizing
+  $(".nav .repository-label:not(.empty), .nav .user-label:not(.empty)").on("focus mouseenter", function() {
+    var width = 5;
+    $(this).find("span").each(function() {
+      width += $(this).width();
+    });
+    $(this).css("width", width);
+  }).on("blur mouseleave", function() {
+      $(this).css("width", "");
+  })
 });

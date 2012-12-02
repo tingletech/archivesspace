@@ -40,12 +40,13 @@ module JSONModel
   def self.JSONModel(source)
     # Checks if a model exists first; returns the model class
     # if it exists; returns false if it doesn't exist.
-    if @@models.has_key?(source.to_s)
-      @@models[source.to_s]
-    else
-      false
+    if !@@models.has_key?(source.to_s)
+      load_schema(source.to_s)
     end
+
+    @@models[source.to_s] || false
   end
+
 
   def JSONModel(source)
     JSONModel.JSONModel(source)
@@ -77,15 +78,30 @@ module JSONModel
   end
 
 
+  def self.schema_src(schema_name)
+    # Look on the filesystem first
+    schema = File.join(File.dirname(__FILE__),
+                       "schemas",
+                       "#{schema_name}.rb")
+
+    if File.exists?(schema)
+      return File.open(schema).read
+    else
+      nil
+    end
+  end
+
+
   def self.load_schema(schema_name)
     if not @@models[schema_name]
-      schema = File.join(File.dirname(__FILE__),
-                         "schemas",
-                         "#{schema_name}.rb")
 
       old_verbose = $VERBOSE
       $VERBOSE = nil
-      entry = eval(File.open(schema).read)
+      src = schema_src(schema_name)
+
+      return if !src
+
+      entry = eval(src)
       $VERBOSE = old_verbose
 
       parent = entry[:schema]["parent"]
@@ -251,19 +267,11 @@ module JSONModel
 
       # Create an instance of this JSONModel from a JSON string.
       def self.from_json(s, raise_errors = true)
-        self.from_hash(JSON(s), raise_errors)
+        self.from_hash(JSON.parse(s, :max_nesting => false), raise_errors)
       end
 
 
-      # Given a numeric internal ID and additional options produce a URI reference.
-      # For example:
-      #
-      #     JSONModel(:archival_object).uri_for(500, :repo_id => 123)
-      #
-      #  might yield "/repositories/123/archival_objects/500"
-      #
-      def self.uri_for(id = nil, opts = {})
-
+      def self.uri_and_remaining_options_for(id = nil, opts = {})
         # Some schemas (like name schemas) don't have a URI because they don't
         # need endpoints.  That's fine.
         if not self.schema['uri']
@@ -277,6 +285,20 @@ module JSONModel
         end
 
         self.substitute_parameters(uri, opts)
+      end
+
+
+      # Given a numeric internal ID and additional options produce a pair containing a URI reference.
+      # For example:
+      #
+      #     JSONModel(:archival_object).uri_for(500, :repo_id => 123)
+      #
+      #  might yield "/repositories/123/archival_objects/500"
+      #
+      def self.uri_for(id = nil, opts = {})
+        result = self.uri_and_remaining_options_for(id, opts)
+
+        result ? result[0] : nil
       end
 
 
@@ -338,7 +360,15 @@ module JSONModel
         set_data(params)
         @warnings = warnings
 
+        # a hash to store transient instance data
+        @instance_data = {}
+
         self.class.define_accessors(@data.keys)
+      end
+
+
+      def instance_data
+        @instance_data
       end
 
 
@@ -369,6 +399,14 @@ module JSONModel
 
         @validated = exceptions
         exceptions
+      end
+
+
+      def add_error(attribute, message)
+        # reset validation
+        @validated = nil
+
+        super
       end
 
 
@@ -413,6 +451,11 @@ module JSONModel
       end
 
 
+      def reset_from(another_jsonmodel)
+        @data = another_jsonmodel.instance_eval { @data }
+      end
+
+
       def to_s
         "#<JSONModel(:#{self.class.record_type}) #{@data.inspect}>"
       end
@@ -439,8 +482,8 @@ module JSONModel
 
       # Produce a JSON string from the values of this JSONModel.  Any values
       # that don't appear in the JSON schema will not appear in the result.
-      def to_json
-        self.to_hash.to_json
+      def to_json(opts = {})
+        self.to_hash.to_json(opts.merge(:max_nesting => false))
       end
 
 
@@ -545,6 +588,7 @@ module JSONModel
       ## Supporting methods following from here
       protected
 
+
       def self.drop_unknown_properties(hash, schema = nil)
         fn = proc do |hash, schema|
           result = {}
@@ -605,12 +649,11 @@ module JSONModel
       end
 
 
-      # Given a URI like /repositories/:repo_id/something/:somevar, and a hash
-      # containing keys and replacement strings, return a URI with the values
-      # substituted in for their placeholders.
+      # Given a URI template like /repositories/:repo_id/something/:somevar, and
+      # a hash containing keys and replacement strings, return [uri, opts],
+      # where 'uri' is the template with values substituted for their
+      # placeholders, and 'opts' is any parameters that weren't consumed.
       #
-      # As a side effect, removes any keys from 'opts' that were successfully
-      # substituted.
       def self.substitute_parameters(uri, opts = {})
         matched = []
         opts.each do |k, v|
@@ -618,16 +661,28 @@ module JSONModel
           uri = uri.gsub(":#{k}", v.to_s)
 
           if old != uri
+
+            if v.is_a? Symbol
+              raise ("Tried to substitute the value '#{v.inspect}' for ':#{k}'." +
+                     "  This is usually a sign that something has gone wrong" +
+                     " further up the stack. (URI was: '#{uri}')")
+            end
+
             # Matched on this parameter.  Remove it from the passed in hash
             matched << k
           end
         end
 
-        matched.each do |k|
-          opts.delete(k)
+        if uri.include?(":")
+          raise "Template substitution was incomplete: '#{uri}'"
         end
 
-        uri
+        remaining_opts = opts.clone
+        matched.each do |k|
+          remaining_opts.delete(k)
+        end
+
+        [uri, remaining_opts]
       end
 
 

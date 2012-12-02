@@ -15,18 +15,17 @@ class Session
         while true
           sid = SecureRandom.hex(SESSION_ID_LENGTH)
 
-          begin
+          completed = DB.attempt {
             db[:session].insert(:session_id => sid,
                                 :session_data => [Marshal.dump({})].pack("m*"),
                                 :last_modified => Time.now)
-            break
-          rescue Sequel::DatabaseError => ex
-            if not DB.is_integrity_violation(ex)
-              raise ex
-            end
+            true
+          }.and_if_constraint_fails {
+            # Retry with a different session ID.
+            false
+          }
 
-            # Otherwise, retry with a different session ID.
-          end
+          break if completed
         end
 
         @id = sid
@@ -52,6 +51,13 @@ class Session
   end
 
 
+  def self.expire(sid)
+    DB.open do |db|
+      db[:session].filter(:session_id => sid).delete
+    end
+  end
+
+
   def []=(key, val)
     @store[key] = val
   end
@@ -69,6 +75,26 @@ class Session
         .update(:session_data => [Marshal.dump(@store)].pack("m*"),
                 :last_modified => Time.now)
     end
+  end
+
+
+  def touch
+    DB.open do |db|
+      db[:session]
+        .filter(:session_id => @id)
+        .update(:last_modified => Time.now)
+    end
+  end
+
+
+  def age
+    last_modified = 0
+    DB.open do |db|
+      last_modified = db[:session]
+        .filter(:session_id => @id)
+        .get(:last_modified)
+    end
+    (Time.now - last_modified).to_i
   end
 
 end

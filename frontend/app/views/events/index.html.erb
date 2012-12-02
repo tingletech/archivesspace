@@ -19,12 +19,15 @@
              </tr>
            </thead>
            <tbody>
-              <% @events.each do |event| %>
+              <% @events['results'].each do |event| %>
               <tr>
-               <td><%= event.id %></td>
+               <td>
+                <% if event.suppressed %><span class="label label-info">Suppressed</span><% end %>
+                <%= event.id %>
+               </td>
                <td>
                   <div class="btn-group" style="float: right">
-                    <% if user_can?('update_repository') %>
+                    <% if user_can?('update_repository') and not event.suppressed %>
                       <%= link_to "Edit", {:controller => :events, :action => :edit, :id => event.id}, :class => "btn btn-mini" %>
                     <% end %>
                   </div>

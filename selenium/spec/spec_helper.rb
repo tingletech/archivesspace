@@ -5,12 +5,13 @@ require "digest"
 require "rspec"
 require_relative '../../common/test_utils'
 
+$sleep_time = 0.0
 
 $backend_port = TestUtils::free_port_from(3636)
 $frontend_port = TestUtils::free_port_from(4545)
 $backend = "http://localhost:#{$backend_port}"
 $frontend = "http://localhost:#{$frontend_port}"
-
+$expire = 300
 
 class RSpec::Core::Example
   def passed?
@@ -37,16 +38,21 @@ module Selenium
       end
     end
   end
+
+  module Config
+    def self.retries
+      40
+    end
+  end
+
 end
 
 
 class Selenium::WebDriver::Driver
-  RETRIES = 20
-
   def wait_for_ajax
     while (self.execute_script("return document.readyState") != "complete" or
            not self.execute_script("return window.$ == undefined || $.active == 0"))
-      sleep(0.2)
+      sleep(0.1)
     end
   end
 
@@ -65,9 +71,10 @@ class Selenium::WebDriver::Driver
 
         return elt
       rescue Selenium::WebDriver::Error::NoSuchElementError => e
-        if try < RETRIES
+        if try < Selenium::Config.retries
           try += 1
-          sleep 0.5
+          $sleep_time += 0.1
+          sleep 0.1
         else
           puts "Failed to find #{selectors}"
 
@@ -105,9 +112,10 @@ class Selenium::WebDriver::Driver
     begin
       try = 0
       while self.find_element_orig(*selector).equal? element
-        if try < RETRIES
+        if try < Selenium::Config.retries
           try += 1
-          sleep 0.5
+          $sleep_time += 0.1
+          sleep 0.1
         else
           raise Selenium::WebDriver::Error::NoSuchElementError.new(selector.inspect)
         end
@@ -127,38 +135,20 @@ class Selenium::WebDriver::Driver
 
 
   def find_element_with_text(xpath, pattern, noError = false, noRetry = false)
-    RETRIES.times do
-
-      matches = self.find_elements(:xpath => xpath)
-      begin
-        matches.each do | match |
-          return match if match.text =~ pattern
-        end
-      rescue
-        # Ignore exceptions and retry
-      end
-
-      if noRetry
-        return nil
-      end
-
-      sleep 0.5
-    end
-
-    return nil if noError
-    raise Selenium::WebDriver::Error::NoSuchElementError.new("Could not find element for xpath: #{xpath} pattern: #{pattern}")
+    self.find_element(:tag_name => "body").find_element_with_text(xpath, pattern, noError, noRetry)
   end
 
 
   def clear_and_send_keys(selector, keys)
-    RETRIES.times do
+    Selenium::Config.retries.times do
       begin
         elt = self.find_element(*selector)
         elt.clear
         elt.send_keys(keys)
         break
       rescue
-        sleep 0.5
+          $sleep_time += 0.1
+        sleep 0.1
       end
     end
   end
@@ -168,6 +158,7 @@ end
 
 
 class Selenium::WebDriver::Element
+
   def select_option(value)
     self.find_elements(:tag_name => "option").each do |option|
       if option.attribute("value") === value
@@ -195,6 +186,31 @@ class Selenium::WebDriver::Element
 
   def containing_subform
     nearest_ancestor('div[contains(@class, "subrecord-form-fields")]')
+  end
+
+
+  def find_element_with_text(xpath, pattern, noError = false, noRetry = false)
+    Selenium::Config.retries.times do
+
+      matches = self.find_elements(:xpath => xpath)
+      begin
+        matches.each do | match |
+          return match if match.text =~ pattern
+        end
+      rescue
+        # Ignore exceptions and retry
+      end
+
+      if noRetry
+        return nil
+      end
+
+          $sleep_time += 0.1
+      sleep 0.1
+    end
+
+    return nil if noError
+    raise Selenium::WebDriver::Error::NoSuchElementError.new("Could not find element for xpath: #{xpath} pattern: #{pattern}")
   end
 
 end
@@ -244,11 +260,38 @@ def selenium_init
   (@backend, @frontend) = [false, false]
   if standalone
     puts "Starting backend and frontend using #{$backend} and #{$frontend}"
-    $backend_pid = TestUtils::start_backend($backend_port, $frontend)
+    $backend_pid = TestUtils::start_backend($backend_port,
+                                            {
+                                              :frontend_url => $frontend,
+                                              :session_expire_after_seconds => $expire
+                                            })
     $frontend_pid = TestUtils::start_frontend($frontend_port, $backend)
   end
 
   @user = "testuser#{Time.now.to_i}_#{$$}"
   @driver = Selenium::WebDriver.for :firefox
   @driver.navigate.to $frontend
+end
+
+
+def assert(&block)
+  try = 0
+
+  begin
+    block.call
+  rescue
+    try += 1
+    if try < Selenium::Config.retries
+      $sleep_time += 0.1
+      sleep 0.1
+      retry
+    else
+      raise $!
+    end
+  end
+end
+
+
+def report_sleep
+  puts "Total time spent sleeping: #{$sleep_time.inspect}"
 end

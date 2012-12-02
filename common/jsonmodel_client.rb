@@ -93,7 +93,12 @@ module JSONModel
 
     # Perform a HTTP POST request against the backend with form parameters
     def self.post_form(uri, params = {})
-      Net::HTTP.post_form(URI("#{backend_url}#{uri}"), params)
+      url = URI("#{backend_url}#{uri}")
+
+      req = Net::HTTP::Post.new(url.request_uri)
+      req.form_data = params
+
+      do_http_request(url, req)
     end
 
 
@@ -104,7 +109,7 @@ module JSONModel
       response = get_response(uri)
 
       if response.is_a?(Net::HTTPSuccess) || response.status == 200
-        JSON(response.body)
+        JSON.parse(response.body, :max_nesting => false)
       else
         nil
       end
@@ -119,6 +124,10 @@ module JSONModel
     end
 
 
+    def self.current_backend_session=(val)
+      Thread.current[:backend_session] = val
+    end
+
     def self.do_http_request(url, req)
       req['X-ArchivesSpace-Session'] = current_backend_session
 
@@ -126,7 +135,7 @@ module JSONModel
         response = http.request(req)
 
         if response.code =~ /^4/
-          JSONModel::handle_error(JSON.parse(response.body))
+          JSONModel::handle_error(JSON.parse(response.body, :max_nesting => false))
         end
 
         response
@@ -136,6 +145,7 @@ module JSONModel
 
     def self.post_json(url, json)
       req = Net::HTTP::Post.new(url.request_uri)
+      req['Content-Type'] = 'text/json'
       req.body = json
 
       do_http_request(url, req)
@@ -166,16 +176,22 @@ module JSONModel
       @errors = nil
 
       type = self.class.record_type
-      response = JSONModel::HTTP.post_json(self.class.my_url(self.id, opts.clone), self.to_json)
+      response = JSONModel::HTTP.post_json(self.class.my_url(self.id, opts),
+                                           self.to_json)
 
       if response.code == '200'
-        response = JSON.parse(response.body)
+        response = JSON.parse(response.body, :max_nesting => false)
 
         self.uri = self.class.uri_for(response["id"], opts)
 
         # If we were able to save successfully, increment our local version
         # number to match the version on the server.
         self.lock_version = response["lock_version"]
+
+        # Ensure object is up to date
+        if response["stale"]
+          self.refetch
+        end
 
         return response["id"]
 
@@ -199,6 +215,41 @@ module JSONModel
     end
 
 
+    def refetch
+      # if a new object, nothing to fetch
+      return self if self.id.nil?
+
+      obj = (self.instance_data.has_key? :find_opts) ?
+                self.class.find(self.id, self.instance_data[:find_opts]) : self.class.find(self.id)
+
+      self.reset_from(obj) if not obj.nil?
+    end
+
+
+    # Mark the suppression status of this record
+    def set_suppressed(val)
+      response = JSONModel::HTTP.post_form("#{self.uri}/suppressed", :suppressed => val)
+
+      if response.code == '403'
+        raise AccessDeniedException.new("Permission denied when setting suppression status")
+      elsif response.code != '200'
+        raise "Error when setting suppression status for #{self}: #{response.code} -- #{response.body}"
+      end
+
+      self["suppressed"] = JSON.parse(response.body)["suppressed_state"]
+    end
+
+
+    def suppress
+      set_suppressed(true)
+    end
+
+
+    def unsuppress
+      set_suppressed(false)
+    end
+
+
     def add_error(field, message)
       @errors ||= {}
       @errors[field.to_s] ||= []
@@ -214,6 +265,7 @@ module JSONModel
 
           def substitute_parameters(uri, opts = {})
             if not opts.has_key?(:repo_id)
+              opts = opts.clone
               opts[:repo_id] = Thread.current[:selected_repo_id]
             end
 
@@ -227,14 +279,16 @@ module JSONModel
       # URL of the backend)
       def my_url(id = nil, opts = {})
 
-        url = URI("#{JSONModel::HTTP.backend_url}#{self.uri_for(id, opts)}")
+        uri, remaining_opts = self.uri_and_remaining_options_for(id, opts)
+
+        url = URI("#{JSONModel::HTTP.backend_url}#{uri}")
 
         # Don't need to pass this as a URL parameter if it wasn't picked up by
         # the URI template substitution.
-        opts.delete(:repo_id)
+        remaining_opts.delete(:repo_id)
 
-        if not opts.empty?
-          url.query = URI.encode_www_form(opts)
+        if not remaining_opts.empty?
+          url.query = URI.encode_www_form(remaining_opts)
         end
 
         url
@@ -247,7 +301,10 @@ module JSONModel
         response = JSONModel::HTTP.get_response(my_url(id, opts))
 
         if response.code == '200'
-          self.from_json(response.body)
+          obj = self.from_json(response.body)
+          # store find params on instance to support #refetch
+          obj.instance_data[:find_opts] = opts
+          obj
         elsif response.code == '403'
           raise AccessDeniedException.new
         elsif response.code == '404'
@@ -259,7 +316,6 @@ module JSONModel
 
 
       # Return all instances of the current JSONModel's record type.
-      # FIXME: This will need some sort of pagination support.
       def all(params = {}, opts = {})
         uri = my_url(nil, opts)
 
@@ -268,9 +324,15 @@ module JSONModel
         response = JSONModel::HTTP.get_response(uri)
 
         if response.code == '200'
-          json_list = JSON(response.body)
+          json_list = JSON.parse(response.body, :max_nesting => false)
 
-          json_list.map {|h| self.from_hash(h)}
+          if json_list.is_a?(Hash)
+            json_list["results"] = json_list["results"].map {|h| self.from_hash(h)}
+          else
+            json_list = json_list.map {|h| self.from_hash(h)}
+          end
+
+          json_list
         elsif response.code == '403'
           raise AccessDeniedException.new
         else

@@ -3,6 +3,7 @@ class Term < Sequel::Model(:term)
   include ASModel
 
   many_to_many :subject, :join_table => "subject_term"
+  set_model_scope :global
 
 
   def validate
@@ -29,7 +30,7 @@ class Term < Sequel::Model(:term)
 
   def self.sequel_to_jsonmodel(obj, type, opts = {})
     json = super
-    json.vocabulary = JSONModel(:vocabulary).uri_for(obj.vocab_id)
+    json.vocabulary = uri_for(:vocabulary, obj.vocab_id)
 
     json
   end

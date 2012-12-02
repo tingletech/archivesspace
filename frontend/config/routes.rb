@@ -33,21 +33,21 @@ ArchivesSpace::Application.routes.draw do
 
   resources :accessions
   match 'accessions/:id' => 'accessions#update', :via => [:post]
+  match 'accessions/:id/suppress' => 'accessions#suppress', :via => [:post]
+  match 'accessions/:id/unsuppress' => 'accessions#unsuppress', :via => [:post]
 
   resources :archival_objects
   match 'archival_objects/:id' => 'archival_objects#update', :via => [:post]
+  match 'archival_objects/:id/parent' => 'archival_objects#parent', :via => [:post]
 
   resources :digital_objects
   match 'digital_objects/:id' => 'digital_objects#update', :via => [:post]
-  match 'digital_objects/:id/tree' => 'digital_objects#tree', :via => [:get]
-  match 'digital_objects/:id/update_tree' => 'digital_objects#update_tree', :via => [:post]
 
   resources :digital_object_components
   match 'digital_object_components/:id' => 'digital_object_components#update', :via => [:post]
+  match 'digital_object_components/:id/parent' => 'digital_object_components#parent', :via => [:post]
 
   resources :resources
-  match 'resources/:id/update_tree' => 'resources#update_tree', :via => [:post]
-  match 'resources/:id/tree' => 'resources#tree', :via => [:get]
   match 'resources/:id/download_ead' => 'exports#download_ead', :via => [:get]
   match 'resources/:id' => 'resources#update', :via => [:post]
 
@@ -74,7 +74,13 @@ ArchivesSpace::Application.routes.draw do
   match 'agents/:type/:id' => 'agents#show', :via => [:get]
   match 'agents' => 'agents#index', :via => [:get]
 
+  match 'collection_management_records/listrecords' => 'collection_management_records#listrecords', :via => [:get]
+  resources :collection_management_records
+  match 'collection_management_records/:id' => 'collection_management_records#update', :via => [:post]
+
   match 'test/shutdown' => 'tests#shutdown', :via => [:get]
+
+  match 'search' => 'search#do_search', :via => [:get]
 
 
   # Sample resource route with options:

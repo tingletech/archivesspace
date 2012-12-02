@@ -36,6 +36,9 @@
              setupErrorMessage(idx, elt, "warning");
            });
          }
+
+        // unbind the event (only needs to run once)
+         $(document).unbind("ajaxComplete", callback);
        };
 
        $(callback);
@@ -71,9 +74,6 @@
    <% end %>
 <% end %>
 
-<% if flash[:success] %>
-   <div class="alert alert-success">
-      <%= flash[:success] %>
-   </div>
-<% end %>
+<%= render :partial => "shared/flash_messages" %>
+
 </div>

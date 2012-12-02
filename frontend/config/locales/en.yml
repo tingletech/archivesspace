@@ -20,12 +20,18 @@ en:
     digital_object_type_text: Text
     language: Language
     restrictions: Restrictions?
+    _html:
+      singular: Digital Object
+      plural: Digital Objects
   digital_object_component:
     label: Label
     title: Title
     component_id: Identifier
     publish: Publish
     language: Language
+    _html:
+      singular: Digital Object Component
+      plural: Digital Object Components
   location:
     temporary: Temporary
     temporary_conservation: Conservation
@@ -44,6 +50,7 @@ en:
     coordinate_2_indicator: Coordinate Indicator 2
     coordinate_3_label: Coordinate Label 3
     coordinate_3_indicator: Coordinate Indicator 3
+    display_string: Display String
   container_location:
     status: Status
     status_current: Current
@@ -63,8 +70,11 @@ en:
     _html:
       singular: Record Link
       plural: Record Links
-  linked_agent:
+  linked_agent: &linked_agent_attributes
     role: Role
+    role_creator: Creator
+    role_source: Source
+    role_subject: Subject
     role_authorizer: Authorizer
     role_executing_program: Executing Program
     role_implementer: Implementer
@@ -74,6 +84,18 @@ en:
     _html:
       singular: Agent Link
       plural: Agent Links
+  accession_linked_agent:
+    <<: *linked_agent_attributes
+  event_linked_agent:
+    <<: *linked_agent_attributes
+  resource_linked_agent:
+    <<: *linked_agent_attributes
+  archival_object_linked_agent:
+    <<: *linked_agent_attributes
+  digital_object_linked_agent:
+    <<: *linked_agent_attributes
+  digital_object_component_linked_agent:
+    <<: *linked_agent_attributes
   event:
     event_type: Type
     outcome: Outcome
@@ -370,6 +392,9 @@ en:
       <<: *external_document_attributes
     _rights_statements:
       <<: *rights_statement_attributes
+    _html:
+      singular: Accession
+      plural: Accessions
   agent: &agent_attributes
     type: Agent Type
     agent_type:
@@ -378,7 +403,7 @@ en:
       agent_corporate_entity: Corporate Entity
       agent_software: Software
     names: Names
-    _names:
+    _names: &name_attributes
       authority_id: Authority ID
       primary_name: Primary Name
       prefix: Prefix
@@ -411,7 +436,7 @@ en:
       rules_local: Local rules (local)
       rules_aacr: Anglo-American Cataloging Rules (aacr)
       rules_dacs: "Describing Archives: A Content Standard (dacs)"
-    _agent_contacts:
+    _agent_contacts: &agent_contact_attributes
       name: Contact Description
       salutation: Salutation
       address_1: Address Line 1
@@ -435,6 +460,16 @@ en:
     <<: *agent_attributes
   agent_software:
     <<: *agent_attributes
+  name_person:
+    <<: *name_attributes
+  name_family:
+    <<: *name_attributes
+  name_software:
+    <<: *name_attributes
+  name_corporate_entity:
+    <<: *name_attributes
+  agent_contact:
+    <<: *agent_contact_attributes
   archival_object:
     title: Title
     ref_id: Ref ID
@@ -447,6 +482,9 @@ en:
       <<: *external_document_attributes
     _rights_statements:
       <<: *rights_statement_attributes
+    _html:
+      singular: Archival Object
+      plural: Archival Objects
   group:
     group_code: Group code
     description: Description
@@ -462,6 +500,7 @@ en:
     "[:id_0, :id_1, :id_2, :id_3]": Identifier
     "[:repo_id, :identifier]": Identifier
     identifier: Identifier
+    ref_id: Ref ID
     extents: Extents
     _extents:
       <<: *extent_attributes
@@ -473,6 +512,9 @@ en:
       <<: *rights_statement_attributes
     _instances:
       <<: *instance_attributes
+    _html:
+      singular: Resource
+      plural: Resources
   repository:
     repo_code: Repository code
     description: Description
@@ -490,4 +532,40 @@ en:
     name: Your full name
     password: Password
     confirm_password: Confirm your password
-    passwords: Passwords
+  collection_management:
+    cataloged_note: Cataloged note
+    processing_hours_per_foot_estimate: Processing hrs/ft estimate
+    processing_total_extent: Processing total extent
+    processing_total_extent_type: Extent type
+    processing_total_extent_type_: --
+    processing_total_extent_type_cassettes: Cassettes
+    processing_total_extent_type_cubic_feet: Cubic Feet
+    processing_total_extent_type_leafs: Leafs
+    processing_total_extent_type_linear_feet: Linear Feet
+    processing_total_extent_type_photographic_prints: Photographic Prints
+    processing_total_extent_type_photographic_slides: Photographic Slides
+    processing_total_extent_type_reels: Reels
+    processing_total_extent_type_sheets: Sheets
+    processing_total_extent_type_volumes: Volumes
+    processing_hours_total: Total processing hours
+    processing_plan: Processing plan
+    processing_priority: Priority
+    processing_priority_: --
+    processing_priority_high: High
+    processing_priority_medium: Medium
+    processing_priority_low: Low
+    processing_status: Status
+    processing_status_: --
+    processing_status_new: New
+    processing_status_in_progress: In Progress
+    processing_status_completed: Completed
+    processors: Processors
+    rights_determined: Rights determined
+    linked_records: Linked records
+    _html:
+      singular: Collection Management Record
+      plural: Collection Management Records
+  collection_management_linked_record:
+    _html:
+      singular: Record Link
+      plural: Record Links

@@ -2,6 +2,8 @@ class Group < Sequel::Model(:group)
   plugin :validation_helpers
   include ASModel
 
+  set_model_scope :repository
+
   many_to_many :user, :join_table => :group_user
   many_to_many :permission, :join_table => :group_permission
 
@@ -13,6 +15,16 @@ class Group < Sequel::Model(:group)
 
   def self.ADMIN_GROUP_CODE
     'administrators'
+  end
+
+
+  def self.SEARCHINDEX_GROUP_CODE
+    'searchindex'
+  end
+
+
+  def before_save
+    self.group_code_norm = self.group_code.downcase
   end
 
 
@@ -88,9 +100,10 @@ class Group < Sequel::Model(:group)
 
   def validate
     super
-    validates_unique([:repo_id, :group_code],
+    self.group_code_norm = self.group_code.downcase
+    validates_unique([:repo_id, :group_code_norm],
                      :message => "Group code must be unique within a repository")
-    map_validation_to_json_property([:repo_id, :group_code], :group_code)
+    map_validation_to_json_property([:repo_id, :group_code_norm], :group_code)
   end
 
 

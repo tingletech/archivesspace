@@ -35,6 +35,9 @@ ul.token-input-list {
 
 ul.token-input-list li {
   list-style-type: none;
+  white-space: normal;
+  position: relative;
+  padding-right: 20px;
 }
 
 ul.token-input-list li input {
@@ -87,7 +90,9 @@ li.token-input-token p {
 }
 
 li.token-input-token .token-input-delete-token {
-  float: right;
+  position: absolute;
+  right: 5px;
+  top: 2px;
   color: #777;
   cursor: pointer;
 }
@@ -206,7 +211,21 @@ div.token-input-dropdown ul li.token-input-selected-dropdown-item {
   .agent_software .icon-token {background-position: -360px -144px;}
   .agent_corporate_entity .icon-token {background-position: -432px -144px;}
   .agent_family .icon-token {background-image: url(../../archivesspace/icon-family.png); background-position: 0 0;}
+  .resource .icon-token {background-position: -264px -24px;}
   .archival_object .icon-token {background-position: -24px -24px;}
+  .digital_object .icon-token {background-position: -384px -120px;}
+  .digital_object_component .icon-token {background-position: -456px -24px;}
+  .accession .icon-token {background-position: -168px -24px;}
   .subject .icon-token {display: none;}
   .location .icon-token {display: none;}
+}
+
+@media (min-width: 768px) and (max-width: 979px) {
+  ul.token-input-list {
+    width: 300px;
+  }
+
+  ul.token-input-list li input {
+    width: 300px;
+  }
 }

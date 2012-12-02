@@ -17,12 +17,16 @@
             <div class="span3">Title</div>
             <div class="span9"><%= @resource.title %></div>
          </div>
+
+        <% if @resource.id_0 %>
          <div class="row-fluid label-and-value">
             <div class="span3">Identifier</div>
             <div class="span9 identifier-display">
                <span class="identifier-display-part"><%= @resource.id_0 %></span><span class="identifier-display-part"><%= @resource.id_1 %></span><span class="identifier-display-part"><%= @resource.id_2 %></span><span class="identifier-display-part"><%= @resource.id_3 %></span>
             </div>
          </div>
+        <% end %>
+
          <% if not @resource.subjects.blank? %>
          <hr/>
          <div class="row-fluid label-and-value">
@@ -37,6 +41,10 @@
          </div>
          <% end %>
       </section>
+
+      <% if @resource.linked_agents.length > 0 %>
+        <%= render :partial => "linked_agents/show", :locals => { :linked_agents => @resource.linked_agents, :section_id => "resource_linked_agents_" } %>
+      <% end %>
 
       <% if @resource.notes.length > 0 %>
         <%= render :partial => "notes/show", :locals => { :notes => @resource.notes, :context => readonly } %>

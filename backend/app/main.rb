@@ -2,18 +2,22 @@ require_relative 'lib/bootstrap'
 require_relative 'lib/rest'
 require_relative 'lib/crud_helpers'
 require_relative 'lib/export'
+require_relative 'lib/request_context.rb'
 require_relative 'lib/webrick_fix'
+require_relative 'lib/import_helpers'
 require 'uri'
 
 require 'sinatra/base'
 require 'json'
+
+require 'rufus/scheduler'
 
 
 class ArchivesSpaceService < Sinatra::Base
 
   include RESTHelpers
   include CrudHelpers
-
+  include ImportHelpers
 
 
   configure :development do |config|
@@ -62,6 +66,8 @@ class ArchivesSpaceService < Sinatra::Base
       require_relative "model/rights_statements"
       require_relative "model/instances"
       require_relative "model/deaccessions"
+      require_relative "model/agents"
+      require_relative "model/trees"
 
       Dir.glob(File.join(File.dirname(__FILE__), "model", "*.rb")).sort.each do |model|
         basename = File.basename(model, ".rb")
@@ -71,6 +77,31 @@ class ArchivesSpaceService < Sinatra::Base
       # Load all controllers
       Dir.glob(File.join(File.dirname(__FILE__), "controllers", "*.rb")).sort.each do |controller|
         load File.absolute_path(controller)
+      end
+
+
+      if !Thread.current[:test_mode] && ENV["ASPACE_INTEGRATION"] != "true"
+        # Start the job scheduler
+        if !settings.respond_to? :scheduler?
+          Log.info("Starting job scheduler")
+          set :scheduler, Rufus::Scheduler.start_new
+        end
+
+
+        if AppConfig[:db_url] == AppConfig.demo_db_url &&
+            settings.scheduler.find_by_tag('demo_db_backup').empty?
+
+          Log.info("Enabling backups for the embedded demo database " +
+                   "running at schedule: #{AppConfig[:demo_db_backup_schedule]}")
+
+
+          settings.scheduler.cron(AppConfig[:demo_db_backup_schedule],
+                                  :tags => 'demo_db_backup') do
+            Log.info("Starting backup of embedded demo database")
+            DB.demo_db_backup
+            Log.info("Backup of embedded demo database completed!")
+          end
+        end
       end
 
     else
@@ -112,13 +143,13 @@ class ArchivesSpaceService < Sinatra::Base
 
     res = error_block!(boom.class, boom) || error_block!(status, boom)
 
-    if res
-      DB.rollback_and_return(res)
-    else
-      raise boom
-    end
+    res or raise boom
   end
 
+
+  error ImportException do
+    json_response({:error => request.env['sinatra.error'].to_s}, 400)
+  end
 
   error NotFoundException do
     json_response({:error => request.env['sinatra.error']}, 404)
@@ -171,19 +202,6 @@ class ArchivesSpaceService < Sinatra::Base
   end
 
 
-  def filter_passwords(params)
-    params = params.clone
-
-    ["password", :password].each do|param|
-      if params[param]
-        params[param] = "[FILTERED]"
-      end
-    end
-
-    params
-  end
-
-
   helpers do
 
     # Redispatch the current request to a different route handler.
@@ -193,15 +211,15 @@ class ArchivesSpaceService < Sinatra::Base
 
 
     def json_response(obj, status = 200)
-      [status, {"Content-Type" => "application/json"}, [obj.to_json + "\n"]]
+      [status, {"Content-Type" => "application/json"}, [obj.to_json(:max_nesting => false) + "\n"]]
     end
 
 
     def modified_response(type, obj, jsonmodel = nil)
-      response = {:status => type, :id => obj[:id], :lock_version => obj[:lock_version]}
+      response = {:status => type, :id => obj[:id], :lock_version => obj[:lock_version], :stale => obj.stale?}
 
       if jsonmodel
-        response[:uri] = jsonmodel.class.uri_for(obj[:id], :repo_id => params[:repo_id])
+        response[:uri] = jsonmodel.class.uri_for(obj[:id], params)
         response[:warnings] = jsonmodel._warnings
       end
 
@@ -218,6 +236,11 @@ class ArchivesSpaceService < Sinatra::Base
       modified_response('Updated', *opts)
     end
 
+
+    def suppressed_response(id, state)
+      json_response({:status => 'Suppressed', :id => id, :suppressed_state => state})
+    end
+
   end
 
 
@@ -226,10 +249,6 @@ class ArchivesSpaceService < Sinatra::Base
       @app = app
     end
 
-    # Wrap every call in our DB connection management code.  This should
-    # transparently deal with database restarts, and gives us a spot to hang any
-    # DB connection logic.
-    #
     def call(env)
       start_time = Time.now
       session_token = env["HTTP_X_ARCHIVESSPACE_SESSION"]
@@ -247,6 +266,21 @@ class ArchivesSpaceService < Sinatra::Base
                      :error => "No session found for #{session_token}"
                    }.to_json]]
         end
+
+        if session[:expirable] &&
+            AppConfig[:session_expire_after_seconds].to_i >= 0 &&
+            session.age > AppConfig[:session_expire_after_seconds].to_i
+          Session.expire(session_token)
+          session = nil
+          return [412,
+                  {"Content-Type" => "application/json"},
+                  [{
+                     :code => "SESSION_EXPIRED",
+                     :error => "Session timed out for #{session_token}"
+                   }.to_json]]
+        else
+          session.touch
+        end
       end
 
 
@@ -258,19 +292,16 @@ class ArchivesSpaceService < Sinatra::Base
           env[:aspace_user] = ((session && session[:user] && User.find(:username => session[:user])) ||
                                ANONYMOUS_USER)
         end
-
-        result = DB.open do
-          @app.call(env)
-        end
-      else
-        result = @app.call(env)
       end
+
+      querystring = env['QUERY_STRING'].empty? ? "" : "?#{Log.filter_passwords(env['QUERY_STRING'])}"
+
+      Log.debug("#{env['REQUEST_METHOD']} #{env['PATH_INFO']}#{querystring} [session: #{session.inspect}]")
+      result = @app.call(env)
 
       end_time = Time.now
 
-      if ArchivesSpaceService.development?
-        Log.debug("Responded with #{result} in #{(end_time - start_time) * 1000}ms")
-      end
+      Log.debug("Responded with #{result.to_s.gsub(/^(.{1024}).+$/, '\\1...')} in #{(end_time - start_time) * 1000}ms")
 
       result
     end

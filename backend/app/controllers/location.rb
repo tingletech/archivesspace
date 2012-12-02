@@ -7,8 +7,7 @@ class ArchivesSpaceService < Sinatra::Base
           ["repo_id", :repo_id])
   .returns([200, :updated]) \
   do
-    handle_update(Location, :location_id, :location,
-                  :repo_id => params[:repo_id])
+    handle_update(Location, :location_id, :location)
   end
 
   Endpoint.post('/repositories/:repo_id/locations')
@@ -23,10 +22,11 @@ class ArchivesSpaceService < Sinatra::Base
 
   Endpoint.get('/repositories/:repo_id/locations')
     .description("Get a list of locations")
-    .params(["repo_id", :repo_id])
+    .params(["repo_id", :repo_id],
+            *Endpoint.pagination)
     .returns([200, "[(:location)]"]) \
   do
-    handle_listing(Location, :location, :repo_id => params[:repo_id])
+    handle_listing(Location, :location, params[:page], params[:page_size], params[:modified_since])
   end
 
 
@@ -36,7 +36,7 @@ class ArchivesSpaceService < Sinatra::Base
             ["repo_id", :repo_id])
     .returns([200, "(:location)"]) \
   do
-    json_response(Location.to_jsonmodel(params[:location_id], :location, params[:repo_id]))
+    json_response(Location.to_jsonmodel(params[:location_id], :location))
   end
 
 end

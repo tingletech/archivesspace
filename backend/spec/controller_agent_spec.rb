@@ -2,39 +2,33 @@ require 'spec_helper'
 
 describe 'Generic agent controller' do
 
-  def create_agents
-    JSONModel(:agent_person).from_hash(:names => [{
-                                                    :rules => "local",
-                                                    :primary_name => 'Magus Magoo',
-                                                    :direct_order => "standard",
-                                                    :sort_name => "1 - MAGOO",
-                                                  }],
-                                       :agent_contacts => [{
-                                                             "name" => "Business hours contact",
-                                                             "telephone" => "0011 1234 1234"
-                                                           }]
-                                       ).save
-
-    JSONModel(:agent_family).from_hash(:names => [{
-                                                    "rules" => "local",
-                                                    "family_name" => "Magoo Family",
-                                                    "sort_name" => "Family Magoo",
-                                                  }],
-                                       :agent_contacts => [{
-                                                             "name" => "Business hours contact",
-                                                             "telephone" => "0011 1234 1234"
-                                                           }]
-                                       ).save
-
-  end
-
-
   it "lets you list all agents of any type" do
-    create_agents
+    [
+      :agent_person, 
+      :agent_family, 
+      :agent_software, 
+      :agent_corporate_entity
+    ].each do |a_type|
+      
+      JSONModel.all('/agents', :agent_type).map {|agent| agent.agent_type }.should_not include(a_type.to_s)
 
-    types = JSONModel.all('/agents', :agent_type).map {|agent| agent.agent_type}.sort
+      create("json_#{a_type.to_s}".to_sym)
 
-    types.should eq(["agent_family", "agent_person"])
+      JSONModel.all('/agents', :agent_type).map {|agent| agent.agent_type }.should include(a_type.to_s)
+    end
+
   end
 
+
+  it "lets you list a queried set of agents" do
+    create(:json_agent_person)
+
+    name = build(:json_name_family).to_hash
+    create(:json_agent_family, :names => [name])
+
+    agents = JSONModel::HTTP.get_json("/agents/by-name", {:q => name['sort_name']})
+
+    agents.length.should eq(1)
+    agents[0]["names"][0]["sort_name"].should eq(name['sort_name'])
+  end
 end

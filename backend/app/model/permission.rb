@@ -2,6 +2,9 @@ class Permission < Sequel::Model(:permission)
   include ASModel
   plugin :validation_helpers
 
+  set_model_scope :global
+
+
   def self.define(code, description, opts = {})
     opts[:level] ||= "repository"
 
@@ -10,7 +13,7 @@ class Permission < Sequel::Model(:permission)
                                                :description => description)))
 
     # Admin users automatically get everything
-    admins = Group[:group_code => Group.ADMIN_GROUP_CODE]
+    admins = Group.any_repo[:group_code => Group.ADMIN_GROUP_CODE]
     admins.grant(permission.permission_code)
   end
 

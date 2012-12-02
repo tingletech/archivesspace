@@ -8,5 +8,14 @@ class BadParamsException < StandardError
   end
 end
 
+
 class NotFoundException < StandardError
+end
+
+
+class ReadOnlyException < StandardError
+end
+
+
+class SequenceError < StandardError
 end

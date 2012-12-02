@@ -7,8 +7,21 @@ class ArchivesSpaceService < Sinatra::Base
             ["repo_id", :repo_id])
     .returns([200, :updated]) \
   do
-    handle_update(Accession, :accession_id, :accession,
-                  :repo_id => params[:repo_id])
+    handle_update(Accession, :accession_id, :accession)
+  end
+
+
+  Endpoint.post('/repositories/:repo_id/accessions/:accession_id/suppressed')
+    .description("Suppress this record from non-managers")
+    .params(["accession_id", Integer, "The accession ID to update"],
+            ["suppressed", BooleanParam, "Suppression state"],
+            ["repo_id", :repo_id])
+    .preconditions(proc { current_user.can?(:manage_repository) })
+    .returns([200, :suppressed]) \
+  do
+    sup_state = Accession.get_or_die(params[:accession_id]).set_suppressed(params[:suppressed])
+
+    suppressed_response(params[:accession_id], sup_state)
   end
 
 
@@ -24,10 +37,13 @@ class ArchivesSpaceService < Sinatra::Base
 
   Endpoint.get('/repositories/:repo_id/accessions')
     .description("Get a list of Accessions for a Repository")
-    .params(["repo_id", :repo_id])
+    .params(["repo_id", :repo_id],
+            *Endpoint.pagination)
     .returns([200, "[(:accession)]"]) \
   do
-    handle_listing(Accession, :accession, :repo_id => params[:repo_id])
+    handle_listing(Accession, :accession,
+                   params[:page], params[:page_size],
+                   params[:modified_since])
   end
 
 
@@ -39,7 +55,7 @@ class ArchivesSpaceService < Sinatra::Base
              :optional => true])
     .returns([200, "(:accession)"]) \
   do
-    json = Accession.to_jsonmodel(params[:accession_id], :accession, params[:repo_id])
+    json = Accession.to_jsonmodel(params[:accession_id], :accession)
 
     json_response(resolve_references(json.to_hash, params[:resolve]))
   end

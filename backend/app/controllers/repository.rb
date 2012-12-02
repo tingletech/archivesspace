@@ -19,8 +19,7 @@ class ArchivesSpaceService < Sinatra::Base
              [404, '{"error":"Repository not found"}']) \
   do
     json_response(Repository.to_jsonmodel(Repository.get_or_die(params[:id]),
-                                          :repository,
-                                          :none))
+                                          :repository))
   end
 
 
@@ -28,8 +27,7 @@ class ArchivesSpaceService < Sinatra::Base
     .description("Get a list of Repositories")
     .returns([200, "[(:repository)]"]) \
   do
-    handle_listing(Repository, :repository,
-                   :hidden => 0)
+    handle_unlimited_listing(Repository, :repository, :hidden => 0)
   end
 
 end

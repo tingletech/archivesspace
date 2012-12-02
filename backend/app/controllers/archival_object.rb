@@ -6,7 +6,7 @@ class ArchivesSpaceService < Sinatra::Base
             ["repo_id", :repo_id])
     .returns([200, :created],
              [400, :error],
-             [409, '{"error":{"[:resource_id, :ref_id]":["An Archival Object Ref ID must be unique to its resource"]}}']) \
+             [409, '{"error":{"[:root_record_id, :ref_id]":["An Archival Object Ref ID must be unique to its resource"]}}']) \
   do
     handle_create(ArchivalObject, :archival_object)
   end
@@ -19,7 +19,7 @@ class ArchivesSpaceService < Sinatra::Base
             ["repo_id", :repo_id])
     .returns([200, :updated],
              [400, :error],
-             [409, '{"error":{"[:resource_id, :ref_id]":["An Archival Object Ref ID must be unique to its resource"]}}']) \
+             [409, '{"error":{"[:root_record_id, :ref_id]":["An Archival Object Ref ID must be unique to its resource"]}}']) \
   do
     handle_update(ArchivalObject, :archival_object_id, :archival_object)
   end
@@ -34,7 +34,7 @@ class ArchivesSpaceService < Sinatra::Base
     .returns([200, "(:archival_object)"],
              [404, '{"error":"ArchivalObject not found"}']) \
   do
-    json = ArchivalObject.to_jsonmodel(params[:archival_object_id], :archival_object, params[:repo_id])
+    json = ArchivalObject.to_jsonmodel(params[:archival_object_id], :archival_object)
 
     json_response(resolve_references(json.to_hash, params[:resolve]))
   end
@@ -44,21 +44,27 @@ class ArchivesSpaceService < Sinatra::Base
     .description("Get the children of an Archival Object")
     .params(["archival_object_id", Integer, "The Archival Object ID"],
             ["repo_id", :repo_id])
-    .returns([200, "[(:archival_object)]"],
+    .returns([200, "a list of archival object references"],
              [404, '{"error":"ArchivalObject not found"}']) \
   do
-    ao = ArchivalObject.get_or_die(params[:archival_object_id], params[:repo_id])
+    ao = ArchivalObject.get_or_die(params[:archival_object_id])
     json_response(ao.children.map {|child|
-                    ArchivalObject.to_jsonmodel(child, :archival_object, params[:repo_id]).to_hash})
+                    {
+                      :uri => JSONModel(:archival_object).uri_for(child.id,
+                                                                  :repo_id => params[:repo_id]),
+                      :title => child.title,
+                      :has_children => child.has_children?
+                    }})
   end
 
 
   Endpoint.get('/repositories/:repo_id/archival_objects')
     .description("Get a list of Archival Objects for a Repository")
-    .params(["repo_id", :repo_id])
+    .params(["repo_id", :repo_id],
+            *Endpoint.pagination)
     .returns([200, "[(:archival_object)]"]) \
   do
-    handle_listing(ArchivalObject, :archival_object, :repo_id => params[:repo_id])
+    handle_listing(ArchivalObject, :archival_object, params[:page], params[:page_size], params[:modified_since])
   end
 
 end

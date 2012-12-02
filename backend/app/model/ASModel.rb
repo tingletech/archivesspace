@@ -11,6 +11,32 @@ module ASModel
   end
 
 
+  @stale = false
+
+  # An object is considered stale if it's been explicitly marked as stale, or if
+  # one of its linked records has been marked as stale.
+  #
+  # THINKME: is this going to be overly expensive in terms of how many objects
+  # it needs to pull back?
+  #
+  def stale?
+    return true if @stale
+
+    (ASModel.linked_records[self.class] or []).each do |linked_record|
+      if [:one_to_one, :many_to_one].include?(linked_record[:association][:type])
+        obj = self.send(linked_record[:association][:name])
+        return true if !obj.nil? and obj.stale?
+      else
+        self.send(linked_record[:association][:name]).each do | record |
+          return true if record.stale?
+        end
+      end
+    end
+
+    false
+  end
+
+
   def before_create
     self.create_time = Time.now
     self.last_modified = Time.now
@@ -35,6 +61,18 @@ module ASModel
 
 
   def update_from_json(json, extra_values = {})
+
+    if self.values.has_key?(:suppressed)
+      if self[:suppressed] == 1
+        raise ReadOnlyException.new("Can't update an object that has been suppressed")
+      end
+
+      # No funny business.  If you want to set this you need to do it via the
+      # dedicated controller.
+      json["suppressed"] = false
+    end
+
+
     schema_defined_properties = json.class.schema["properties"].keys
 
     # Start by assuming all existing properties were nil, then overlay the
@@ -52,7 +90,7 @@ module ASModel
 
     id = self.save
 
-    self.class.apply_linked_database_records(self, json, extra_values)
+    self.class.apply_linked_database_records(self, json)
 
     id
   end
@@ -74,6 +112,84 @@ module ASModel
 
 
   module ClassMethods
+
+    @suppressible = false
+
+    def enable_suppression
+      @suppressible = true
+    end
+
+    def suppressible?
+      @suppressible
+    end
+
+    def set_model_scope(value)
+      if ![:repository, :global].include?(value)
+        raise "Failure for #{self}: Model scope must be set as :repository or :global"
+      end
+
+      if value == :repository
+        model = self
+
+        orig_ds = self.dataset.clone
+
+        def_dataset_method(:this_repo) do
+          filter = {:repo_id => model.active_repository}
+
+          if model.suppressible? && model.enforce_suppression?
+            filter[:suppressed] = 0
+          end
+
+          orig_ds.filter(filter)
+        end
+
+
+        def_dataset_method(:any_repo) do
+          if model.suppressible? && model.enforce_suppression?
+            orig_ds.filter(:suppressed => 0)
+          else
+            orig_ds
+          end
+        end
+
+        orig_row_proc = self.dataset.row_proc
+
+        self.dataset.row_proc = proc do |row|
+          if row.has_key?(:repo_id) && row[:repo_id] != model.active_repository
+            raise ("ASSERTION FAILED: #{row.inspect} has a repo_id of " +
+                   "#{row[:repo_id]} but the active repository is #{model.active_repository}")
+          end
+
+          orig_row_proc.call(row)
+        end
+
+      end
+
+      @model_scope = value
+    end
+
+
+    def model_scope
+      @model_scope or
+        raise "set_model_scope definition missing for model #{self}"
+    end
+
+
+    def enforce_suppression?
+      RequestContext.get(:enforce_suppression)
+    end
+
+
+    def active_repository
+      repo = RequestContext.get(:repo_id)
+
+      if model_scope == :repository and repo.nil?
+        raise "Missing repo_id for request!"
+      end
+
+      repo
+    end
+
 
     # Match a JSONModel object to an existing database association.
     #
@@ -119,10 +235,16 @@ module ASModel
     def create_from_json(json, extra_values = {})
       self.strict_param_setting = false
 
-      obj = self.create(prepare_for_db(json.class.schema,
-                                       json.to_hash.merge(ASUtils.keys_as_strings(extra_values))))
+      values = ASUtils.keys_as_strings(extra_values)
 
-      self.apply_linked_database_records(obj, json, extra_values)
+      if model_scope == :repository && !values.has_key?("repo_id")
+        values["repo_id"] = active_repository
+      end
+
+      obj = self.create(prepare_for_db(json.class.schema,
+                                       json.to_hash.merge(values)))
+
+      self.apply_linked_database_records(obj, json)
 
       obj
     end
@@ -188,7 +310,7 @@ module ASModel
     # sense for a one-to-one or one-to-many relationship, where we want to
     # delete the object once it becomes unreferenced.
     #
-    def apply_linked_database_records(obj, json, opts)
+    def apply_linked_database_records(obj, json)
       (ASModel.linked_records[self] or []).each do |linked_record|
 
         # Remove the existing linked records
@@ -229,7 +351,7 @@ module ASModel
                 # Give our classes an opportunity to provide their own logic here
                 db_record = model.ensure_exists(subrecord_json, obj)
               else
-                extra_opts = opts.clone
+                extra_opts = {}
 
                 if linked_record[:association][:key]
                   extra_opts[linked_record[:association][:key]] = obj.id
@@ -287,31 +409,37 @@ module ASModel
     end
 
 
-    def get_or_die(id, repo_id = nil)
-      # For a minute there I lost myself...
-      obj = repo_id.nil? ? self[id] : self[:id => id, :repo_id => repo_id]
+    def get_or_die(id)
+      obj = if self.model_scope == :repository
+              self.this_repo[:id => id]
+            else
+              self[id]
+            end
 
       obj or raise NotFoundException.new("#{self} not found")
+    end
+
+
+    def uri_for(jsonmodel, id, opts = {})
+      JSONModel(jsonmodel).uri_for(id, opts.merge(:repo_id => self.active_repository))
     end
 
 
     def sequel_to_jsonmodel(obj, model, opts = {})
       json = JSONModel(model).new(map_db_types_to_json(JSONModel(model).schema, obj.values.reject {|k, v| v.nil? }))
 
-      uri = json.class.uri_for(obj.id, {:repo_id => obj[:repo_id]})
+      uri = json.class.uri_for(obj.id, :repo_id => active_repository)
       json.uri = uri if uri
 
       # If there are linked records for this class, grab their URI references too
       (ASModel.linked_records[self] or []).each do |linked_record|
-        # The opts hash will be mutated during URI substitution, so retain our own copy.
-        opts = opts.clone
         model = Kernel.const_get(linked_record[:association][:class_name])
 
         records = Array(obj.send(linked_record[:association][:name])).map {|linked_obj|
           if linked_record[:always_resolve]
-            model.to_jsonmodel(linked_obj, linked_record[:jsonmodel], :any, opts.clone).to_hash
+            model.to_jsonmodel(linked_obj, linked_record[:jsonmodel]).to_hash
           else
-            JSONModel(linked_record[:jsonmodel]).uri_for(linked_obj.id, opts.clone) or
+            JSONModel(linked_record[:jsonmodel]).uri_for(linked_obj.id, :repo_id => active_repository) or
               raise "Couldn't produce a URI for record type: #{linked_record[:type]}."
           end
         }
@@ -325,20 +453,11 @@ module ASModel
     end
 
 
-    def to_jsonmodel(obj, model, repo_id, opts = {})
+    def to_jsonmodel(obj, model, opts = {})
       if obj.is_a? Integer
-        raise("Can't accept a repo_id of nil:\n" +
-              "  * If you're getting an object that isn't repository-scoped, use :none\n" +
-              "  * If you don't care which repository you're fetching from (careful!), use :any\n") if repo_id.nil?
-
         # An ID.  Get the Sequel row for it.
-        obj = get_or_die(obj, ([:any, :none].include?(repo_id)) ? nil : repo_id)
-
-        raise "Expected object to have a repo_id set: #{obj.inspect}" if (repo_id == :any && obj[:repo_id].nil?)
-        raise "Didn't expect object to have a repo_id set: #{obj.inspect}" if (repo_id == :none && !obj[:repo_id].nil?)
+        obj = get_or_die(obj)
       end
-
-      opts[:repo_id] ||= repo_id
 
       sequel_to_jsonmodel(obj, model, opts)
     end

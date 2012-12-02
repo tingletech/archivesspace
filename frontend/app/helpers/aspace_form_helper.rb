@@ -106,6 +106,10 @@ module AspaceFormHelper
       "#{names.first}#{path}"
     end
 
+    def parent_context
+      form_top
+    end
+
 
     def obj
       @context.last.second
@@ -192,6 +196,19 @@ module AspaceFormHelper
 
     def label_and_boolean(name, opts = {}, default = false, force_checked = false)
       label_with_field(name, checkbox(name, opts, default, force_checked))
+    end
+
+
+    def label_and_readonly(name, default = "", opts = {})
+      value = obj[name]
+
+      if opts.has_key? :controls_class
+        opts[:controls_class] << " label-only"
+      else
+        opts[:controls_class] = " label-only"
+      end
+
+      label_with_field(name, value.blank? ? default : value , opts)
     end
 
 
@@ -317,7 +334,12 @@ module AspaceFormHelper
     end
 
     def textfield(name = nil, value = "", opts =  {})
-      value
+      return "" if value.blank?
+      CGI::escapeHTML(value)
+    end
+
+    def textarea(name = nil, value = "", opts =  {})
+      @parent.preserve_newlines(CGI::escapeHTML(value))
     end
 
     def checkbox(name, opts = {}, default = true, force_checked = false)
@@ -401,4 +423,83 @@ module AspaceFormHelper
 
     s
   end
+
+  PROPERTIES_TO_EXCLUDE_FROM_READ_ONLY_VIEW = ["jsonmodel_type", "lock_version", "resolved", "uri"]
+
+  def read_only_view(hash, opts = {})
+    jsonmodel_type = hash["jsonmodel_type"]
+    schema = JSONModel(jsonmodel_type).schema
+    html = ""
+
+    opts[:label_css] = "span3 offset1" if not opts.has_key? :label_css
+    opts[:value_css] = "span8" if not opts.has_key? :value_css
+
+    hash.reject {|k,v| PROPERTIES_TO_EXCLUDE_FROM_READ_ONLY_VIEW.include?(k)}.each do |property, value|
+
+      if schema and schema["properties"].has_key?(property)
+        if schema["properties"][property].has_key?("enum")
+          value = I18n.t("#{jsonmodel_type.to_s}.#{property}_#{value}", value)
+        elsif schema["properties"][property]["type"] === "boolean"
+          value = value === true ? "True" : "False"
+        elsif schema["properties"][property]["type"] === "array"
+          # this view doesn't support arrays
+          next
+        elsif hash.has_key?("resolved") and hash["resolved"].has_key?(property)
+          # don't display a resolved attribute... as it's probably just a URI
+          next
+        elsif value.kind_of? Hash
+          # can't display an object either
+          next
+        end
+      end
+
+      html << "<div class='row-fluid label-and-value'>"
+      html << "<div class='#{opts[:label_css]}'>#{I18n.t("#{jsonmodel_type.to_s}.#{property}")}</div>"
+      html << "<div class='#{opts[:value_css]}'>#{value}</div>"
+      html << "</div>"
+
+    end
+
+    html.html_safe
+  end
+
+  def preserve_newlines(string)
+    string.gsub(/\n/, '<br>')
+  end
+
+  def jsonmodel_url_for(search_result_json, action)
+    case search_result_json["type"]
+      when "accession"
+        {:controller => :accessions, :action => action, :id => JSONModel(:accession).id_for(search_result_json["id"])}
+      when "resource"
+        {:controller => :resources, :action => action, :id => JSONModel(:resource).id_for(search_result_json["id"])}
+      when "archival_object"
+        {
+          :controller => :resources,
+          :action => action,
+          :id => JSONModel(:resource).id_for(search_result_json["resource"]),
+          :anchor => "tree::archival_object_#{JSONModel(:archival_object).id_for(search_result_json["id"])}"
+        }
+      when "digital_object"
+        {:controller => :digital_objects, :action => action, :id => JSONModel(:digital_object).id_for(search_result_json["id"])}
+      when "digital_object_component"
+        {
+          :controller => :digital_objects,
+          :action => action,
+          :id => JSONModel(:digital_object).id_for(search_result_json["digital_object"]),
+          :anchor => "tree::digital_object_component_#{JSONModel(:digital_object_component).id_for(search_result_json["id"])}"
+        }
+      else
+        nil
+    end
+  end
+
+  def jsonmodel_edit_url_for(search_result_json)
+    jsonmodel_url_for(search_result_json, :show)
+  end
+
+  def jsonmodel_view_url_for(search_result_json)
+    jsonmodel_url_for(search_result_json, :edit)
+  end
+
 end

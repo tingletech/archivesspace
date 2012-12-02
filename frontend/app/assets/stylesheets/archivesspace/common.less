@@ -1,3 +1,7 @@
+body {
+  position: relative;
+}
+
 .form-horizontal {
   // Increase spacing between groups
   .control-group {
@@ -6,7 +10,7 @@
 }
 
 h2 > .label {
-  line-height: @baseLineHeight * 2;
+  margin-top: @baseLineHeight / 2;
   vertical-align: top;
 }
 
@@ -86,7 +90,7 @@ h2 > .label {
   .identifier-display-part {
     border: 1px solid #F6F6F6;
     background-color: #FCFCFC;
-    padding: 2px 4px;
+    padding: 4px;
     margin-right: 4px;
     min-width: 60px;
     float: left;
@@ -173,4 +177,12 @@ h2 > .label {
 /* fix typeahead not displaying above modal blockout */
 .typeahead.dropdown-menu {
   z-index: 1099;
+}
+
+.pagination {
+  margin: 0;
+}
+
+.table {
+  margin-bottom: 5px;
 }

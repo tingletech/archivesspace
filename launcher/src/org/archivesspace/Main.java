@@ -6,6 +6,29 @@ import org.eclipse.jetty.webapp.WebAppContext;
 import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.handler.ContextHandlerCollection;
 
+import java.io.File;
+import java.util.UUID;
+import org.jruby.Ruby;
+
+
+class AppConfig
+{
+    private Ruby runtime;
+
+    public AppConfig()
+    {
+        runtime = Ruby.newInstance();
+
+        runtime.evalScriptlet("require 'config/config-distribution'");
+    }
+
+    public String getString(String setting)
+    {
+        return runtime.evalScriptlet("AppConfig[:" + setting + "]").asJavaString();
+    }
+}
+
+
 public class Main
 {
     private static Server runServer(int port, String war, String path)
@@ -32,6 +55,20 @@ public class Main
     }
 
 
+    private static void runIndexer()
+    {
+        Ruby runtime = Ruby.newInstance();
+
+        // Tricky!
+        // Allow the indexer to share the same set of gems as the backend
+        runtime.evalScriptlet("Gem.path << $LOAD_PATH.grep(/^file:.*\\.jar!/)." +
+                              "map {|path| \"#{path.split('!').first}!/backend/WEB-INF/gems\"}." +
+                              "find {|gems| File.exists?(gems) }");
+
+        runtime.evalScriptlet("require 'indexer/indexer'");
+    }
+
+
     public static void main(String[] args) throws Exception
     {
         System.setProperty("org.eclipse.jetty.webapp.LEVEL", "WARN");
@@ -39,6 +76,20 @@ public class Main
 
         int backend_port = 8089;
         int frontend_port = 8080;
+        int solr_port = 8090;
+
+        AppConfig config = new AppConfig();
+
+        String tempDir = config.getString("data_directory") + File.separator + "tmp";
+
+        new File(tempDir).mkdirs();
+
+        System.setProperty("java.io.tmpdir", tempDir);
+        System.setProperty("solr.data.dir", config.getString("solr_index_directory"));
+        System.setProperty("solr.solr.home", config.getString("solr_home_directory"));
+        System.setProperty("aspace.config.search_user_secret",
+                           UUID.randomUUID().toString());
+
 
         if (args.length >= 1) {
             frontend_port = Integer.valueOf(args[0]);
@@ -48,16 +99,25 @@ public class Main
             backend_port = Integer.valueOf(args[1]);
         }
 
+        if (args.length >= 3) {
+            solr_port = Integer.valueOf(args[2]);
+        }
+
         System.setProperty("aspace.config.backend_url", "http://localhost:"
                            + backend_port);
 
         System.setProperty("aspace.config.frontend_url", "http://localhost:"
                            + frontend_port);
 
+        System.setProperty("aspace.config.solr_url", "http://localhost:"
+                           + solr_port);
+
 
         Server backend_server = runServer(backend_port, "backend", "/");
         Server frontend_server = runServer(frontend_port, "frontend", "/");
+        Server solr_server = runServer(solr_port, "solr", "/");
 
+        solr_server.start();
         backend_server.start();
         frontend_server.start();
 
@@ -68,7 +128,10 @@ public class Main
         System.out.println("  You can now point your browser to http://localhost:" + frontend_port + "/");
         System.out.println(" ************************************************************\n");
 
+        runIndexer();
+
         backend_server.join();
         frontend_server.join();
+        solr_server.join();
     }
 }

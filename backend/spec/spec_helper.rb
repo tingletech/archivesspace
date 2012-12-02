@@ -1,4 +1,5 @@
 require 'sinatra'
+require 'java'
 
 require_relative '../app/lib/webhooks'
 
@@ -44,9 +45,19 @@ class DB
   def self.connect
     if not @pool
       require_relative "../app/model/db_migrator"
-      @pool = Sequel.connect("jdbc:derby:memory:fakedb;create=true",
+
+      test_db_url = "jdbc:derby:memory:fakedb;create=true"
+
+      begin
+        java.lang.Class.for_name("org.h2.Driver")
+        test_db_url = "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1"
+      rescue java.lang.ClassNotFoundException
+        # Oh well.  Derby it is!
+      end
+
+      @pool = Sequel.connect(test_db_url,
                              :max_connections => 10,
-                             # :loggers => [Logger.new($stderr)]
+                             #:loggers => [Logger.new($stderr)]
                              )
 
       DBMigrator.nuke_database(@pool)
@@ -58,6 +69,8 @@ end
 
 require 'rack/test'
 require_relative "../app/lib/bootstrap"
+AppConfig[:search_user_secret] = "abc123"
+
 
 JSONModel::init(:client_mode => true, :strict_mode => true,
                 :url => 'http://example.com')
@@ -66,6 +79,7 @@ module JSONModel
   module HTTP
 
     extend Rack::Test::Methods
+
 
     def self.do_http_request(url, req)
       send(req.method.downcase.intern, req.path, params = req.body)
@@ -113,22 +127,30 @@ def app
   ArchivesSpaceService
 end
 
+require 'factory_girl'
+
+
+# FactoryGirl.definition_file_paths = [File.dirname(__FILE__)]
+# FactoryGirl.find_definitions
+require_relative 'factories'
+include FactoryGirl::Syntax::Methods
+
 
 def make_test_repo(code = "ARCHIVESSPACE")
-  repo = Repository.create(:repo_code => code,
-                           :description => "A new ArchivesSpace repository")
+  repo = create(:repo, {:repo_code => code})
 
   @repo_id = repo.id
   @repo = JSONModel(:repository).uri_for(repo.id)
 
   JSONModel::set_repository(@repo_id)
+  RequestContext.put(:repo_id, @repo_id)
 
   @repo_id
 end
 
 
 def make_test_user(username, name = "A test user", source = "local")
-  User.create(:username => username, :name => name, :source => source)
+  create(:user, {:username => username, :name => name, :source => source})
 end
 
 
@@ -140,25 +162,58 @@ class ArchivesSpaceService
 end
 
 
+def create_nobody_user
+  create(:user, :username => 'nobody')
+
+  viewers = JSONModel(:group).all(:group_code => "repository-viewers", :page => 1)['results'].first
+  viewers.member_usernames = ['nobody']
+  viewers.save
+end
+
+
 def as_test_user(username)
   old_user = Thread.current[:active_test_user]
   Thread.current[:active_test_user] = User.find(:username => username)
+  orig = RequestContext.get(:enforce_suppression)
+
   begin
+    if RequestContext.active?
+      RequestContext.put(:enforce_suppression,
+                         !Thread.current[:active_test_user].can?(:manage_repository))
+    end
+
     yield
   ensure
+    RequestContext.put(:enforce_suppression, orig) if RequestContext.active?
     Thread.current[:active_test_user] = old_user
+  end
+end
+
+
+DB.open(true) do
+  RequestContext.open do
+    create(:repo)
+    $default_repo = $repo_id
   end
 end
 
 
 RSpec.configure do |config|
   config.include Rack::Test::Methods
+  config.include FactoryGirl::Syntax::Methods
 
   # Roll back the database after each test
   config.around(:each) do |example|
     DB.open(true) do
       as_test_user("admin") do
-        example.run
+        RequestContext.open do
+          $repo_id = $default_repo
+          $repo = JSONModel(:repository).uri_for($repo_id)
+          JSONModel::set_repository($repo_id)
+          RequestContext.put(:repo_id, $repo_id)
+
+          example.run
+        end
       end
       raise Sequel::Rollback
     end

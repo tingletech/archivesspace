@@ -2,33 +2,19 @@ require 'spec_helper'
 
 describe 'Group controller' do
 
-  before(:each) do
-    make_test_repo
-  end
-
-
-  def create_group(gcode = "newgroup", opts = {})
-    group = JSONModel(:group).from_hash("group_code" => gcode,
-                                        "description" => "A test group")
-    group.update(opts)
-    group.save
-
-    group
-  end
-
-
   it "lets you create a group and get it back" do
-    created = create_group
-    JSONModel(:group).find(created.id).description.should eq("A test group")
+    opts = {:description => generate(:generic_description)}
+    group = create(:json_group, opts)
+    JSONModel(:group).find(group.id).description.should eq(opts[:description])
   end
 
 
   it "lets you set the group's membership" do
-    group = create_group
+    group = create(:json_group)
 
-    make_test_user("herman")
-    make_test_user("guybrush")
-    make_test_user("elaine")
+    create(:user, {:username => 'herman'})
+    create(:user, {:username => 'guybrush'})
+    create(:user, {:username => 'elaine'})
 
     group.member_usernames = ["herman"]
     group.save
@@ -43,11 +29,11 @@ describe 'Group controller' do
 
 
   it "optionally leaves group members alone" do
-    group = create_group
+    group = create(:json_group)
 
-    make_test_user("herman")
-    make_test_user("guybrush")
-    make_test_user("elaine")
+    create(:user, {:username => 'herman'})
+    create(:user, {:username => 'guybrush'})
+    create(:user, {:username => 'elaine'})
 
     group.member_usernames = ["herman"]
     group.save
@@ -66,8 +52,8 @@ describe 'Group controller' do
 
 
   it "assigns permissions" do
-    group = create_group
-    make_test_user("guybrush")
+    group = create(:json_group)
+    create(:user, {:username => 'guybrush'})
 
     Permission.define("swashbuckle", "The right to sail the high seas!")
 
@@ -76,29 +62,27 @@ describe 'Group controller' do
     group.save
 
     User[:username => "guybrush"].can?("swashbuckle",
-                                       :repo_id => @repo_id).should eq(true)
+                                       :repo_id => $repo_id).should eq(true)
   end
 
 
   it "restricts group listings to only the current repository" do
-    repo_one = make_test_repo("RepoOne")
-    repo_two = make_test_repo("RepoTwo")
+    repo_one = create(:repo, :repo_code => 'RepoOne')
+    create(:json_group, {:group_code => "group-in-repo1"})
 
-    JSONModel(:group).from_hash("group_code" => "group-in-repo1",
-                                "description" => "A test group").save(:repo_id => repo_one)
+    repo_two = create(:repo, :repo_code => 'RepoTwo')
+    create(:json_group, {:group_code => "group-in-repo2"})
 
-    JSONModel(:group).from_hash("group_code" => "group-in-repo2",
-                                "description" => "A test group").save(:repo_id => repo_two)
-
-    groups = JSONModel(:group).all({}, :repo_id => repo_one)
+    RequestContext.put(:repo_id, repo_one.id)
+    groups = JSONModel(:group).all(:page => 1)['results']
 
     groups.map(&:group_code).include?("group-in-repo2").should be_false
   end
 
 
   it "stops you assigning a global permission to a repository" do
-    group = create_group
-    make_test_user("guybrush")
+    group = create(:json_group)
+    create(:user, {:username => 'guybrush'})
 
     Permission.define("captain", "The captain of the ArchivesSpace ship",
                       :level => "global")
@@ -111,19 +95,19 @@ describe 'Group controller' do
 
 
   it "restricts group-related activities to repository-managers" do
-    make_test_user("archivist")
-    archivists = JSONModel(:group).all(:group_code => "repository-archivists").first
+    create(:user, {:username => 'archivist'})
+    archivists = JSONModel(:group).all(:page => 1,:group_code => "repository-archivists")['results'].first
     archivists.member_usernames = ["archivist"]
     archivists.save
 
-    make_test_user("viewer")
-    viewers = JSONModel(:group).all(:group_code => "repository-viewers").first
+    create(:user, {:username => 'viewer'})
+    viewers = JSONModel(:group).all(:page => 1, :group_code => "repository-viewers")['results'].first
     viewers.member_usernames = ["viewer"]
     viewers.save
 
     ["archivist", "viewer"].each do |user|
       expect {
-        as_test_user(user) do JSONModel(:group).all end
+        as_test_user(user) do JSONModel(:group).all(:page => 1)['results'] end
       }.to raise_error(AccessDeniedException)
 
       expect {
@@ -138,11 +122,12 @@ describe 'Group controller' do
 
 
   it "gives a list of all groups" do
-    create_group("supergroup")
-    create_group("groupthink")
-    create_group("groupygroup")
+    
+    group = create(:json_group, {:group_code => 'supergroup'})
+    group = create(:json_group, {:group_code => 'groupthink'})
+    group = create(:json_group, {:group_code => 'groupygroup'})
 
-    groups = JSONModel(:group).all
+    groups = JSONModel(:group).all(:page => 1)['results']
 
     groups.any? { |group| group.group_code == "supergroup" }.should be_true
     groups.any? { |group| group.group_code == "groupthink" }.should be_true
@@ -151,16 +136,24 @@ describe 'Group controller' do
 
 
   it "allows repository managers to view the group list" do
-    make_test_user("newmanager")
-    managers = JSONModel(:group).all(:group_code => "repository-managers").first
+    create(:user, {:username => 'newmanager'})
+    create(:user, {:username => 'underling'})
+    
+    managers = JSONModel(:group).all(:page => 1, :group_code => "repository-managers")['results'].first
     managers.member_usernames = ["newmanager"]
     managers.save
 
     expect {
       as_test_user("newmanager") do
-        JSONModel(:group).all
+        JSONModel(:group).all(:page => 1)['results']
       end
     }.to_not raise_error
+    
+    expect {
+      as_test_user('underling') do
+        JSONModel(:group).all(:page => 1)['results']
+      end
+    }.to raise_error
   end
 
 end

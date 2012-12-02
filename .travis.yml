@@ -12,6 +12,10 @@ rvm:
 jdk:
   - oraclejdk7
 
+branches:
+  except:
+    - gh-pages
+
 script:
   - build/run bootstrap
   - build/run backend:test

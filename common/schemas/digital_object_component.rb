@@ -21,11 +21,30 @@
 
       "parent" => {"type" => "JSONModel(:digital_object_component) uri", "required" => false},
       "digital_object" => {"type" => "JSONModel(:digital_object) uri", "required" => false},
+      "position" => {"type" => "integer", "required" => false},
 
       "subjects" => {"type" => "array", "items" => {"type" => "JSONModel(:subject) uri_or_object"}},
       "extents" => {"type" => "array", "items" => {"type" => "JSONModel(:extent) object"}},
       "dates" => {"type" => "array", "items" => {"type" => "JSONModel(:date) object"}},
       "external_documents" => {"type" => "array", "items" => {"type" => "JSONModel(:external_document) object"}},
+
+      "linked_agents" => {
+        "type" => "array",
+        "items" => {
+          "type" => "object",
+          "properties" => {
+            "role" => {
+              "type" => "string",
+              "enum" => ["creator", "source", "subject"],
+            },
+
+            "ref" => {"type" => [{"type" => "JSONModel(:agent_corporate_entity) uri"},
+                                 {"type" => "JSONModel(:agent_family) uri"},
+                                 {"type" => "JSONModel(:agent_person) uri"},
+                                 {"type" => "JSONModel(:agent_software) uri"}]}
+          }
+        }
+      },
 
     },
 

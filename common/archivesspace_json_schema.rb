@@ -21,13 +21,6 @@ class IfMissingAttribute < JSON::Schema::PropertiesAttribute
             validation_error(message, fragments, current_schema, self, options[:record_errors])
           end
         end
-
-        if data.has_key?(property)
-          schema = JSON::Schema.new(property_schema, current_schema.uri,validator)
-          fragments << property
-          schema.validate(data[property], fragments, options)
-          fragments.pop
-        end
       end
     end
   end
@@ -51,7 +44,11 @@ class ArchivesSpaceTypeAttribute < JSON::Schema::TypeAttribute
          !"#{current_schema.schema["type"]}".include?("JSONModel(:#{data['jsonmodel_type']})"))
 
       # Blow up
-      validation_error("Nope!", fragments, current_schema, self, false)
+      msg = "ERROR: Schema type mismatch."
+      msg += " The passed in data has 'jsonmodel_type' set to '#{data["jsonmodel_type"]}'"
+      msg += " but the current schema only supports types: #{current_schema.schema["type"].inspect}."
+
+      validation_error(msg, fragments, current_schema, self, false)
     end
 
     if JSONModel.parse_jsonmodel_ref(types)

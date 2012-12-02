@@ -12,10 +12,10 @@ class ArchivesSpaceService < Sinatra::Base
 
   Endpoint.get('/subjects')
     .description("Get a list of Subjects")
-    .params()
+    .params(*Endpoint.pagination)
     .returns([200, "[(:subject)]"]) \
   do
-    handle_listing(Subject, :subject)
+    handle_listing(Subject, :subject, params[:page], params[:page_size], params[:modified_since])
   end
 
 
@@ -24,6 +24,6 @@ class ArchivesSpaceService < Sinatra::Base
     .params(["subject_id", Integer, "The subject ID"])
     .returns([200, "(:subject)"]) \
   do
-    json_response(Subject.to_jsonmodel(params[:subject_id], :subject, :none).to_hash)
+    json_response(Subject.to_jsonmodel(params[:subject_id], :subject).to_hash)
   end
 end

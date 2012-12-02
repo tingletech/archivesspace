@@ -8,13 +8,14 @@
 
   <%= form.hidden_input "parent" %>
   <%= form.hidden_input "resource" %>
-  <%= hidden_field_tag "ao_id", @archival_object.id %>
+  <%= hidden_field_tag "id", @archival_object.id %>
 
   <section id="basic_information">
     <h3>Basic Information</h3>
     <%= render :partial => "archival_objects/forms/basic_information", :locals => {:form => form} %>
   </section>
 
+  <%= render :partial => "shared/subrecord_form", :locals => {:form => form, :name => "linked_agents", :template => "archival_object_linked_agent"} %>
   <%= render :partial => "shared/subrecord_form", :locals => {:form => form, :name => "extents"} %>
   <%= render :partial => "shared/subrecord_form", :locals => {:form => form, :name => "dates"} %>
   <%= render :partial => "shared/subrecord_form", :locals => {:form => form, :name => "external_documents"} %>

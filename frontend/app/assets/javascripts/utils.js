@@ -56,25 +56,48 @@ $(function() {
 // sidebar action
 $(function() {
   var bindSidebarEvents = function() {
-    $("#archivesSpaceSidebar:not(.initialised)").each(function() {
-      $(this).on("click", ".nav a", function(event) {
-        event.preventDefault();
-        event.stopPropagation();
+    $(this).on("click", ".nav a", function(event) {
+      event.preventDefault();
+      event.stopPropagation();
 
-        var $target_item = $(this);
-        $($target_item.attr("href")).ScrollTo({
-          callback: function() {
-              $(".active", "#archivesSpaceSidebar").removeClass("active");
-              $target_item.parents("li:first").addClass("active");
-          }
-        });
+      var $target_item = $(this);
+      $($target_item.attr("href")).ScrollTo({
+        callback: function() {
+            $(".active", "#archivesSpaceSidebar").removeClass("active");
+            $target_item.parents("li:first").addClass("active");
+        }
       });
-      $(this).addClass("initialised");      
     });
   };
-  bindSidebarEvents();
+  var initSidebar = function() {
+    $("#archivesSpaceSidebar .nav-list:not(.initialised)").each(function() {
+      $.proxy(bindSidebarEvents, this)();
+      $(this).affix({
+        offset: {
+          top: $("#archivesSpaceSidebar").offset().top,
+          bottom: 100
+        }
+      });
+      $(this).addClass("initialised");
+    });
+  };
+
+  initSidebar();
+
+  // If the tree pane resizes, then we need to reset the offsets of the
+  // affixed sidebar.
+  $(window).bind("resize.tree", function() {
+    $("#archivesSpaceSidebar .nav-list.initialised").each(function() {
+      $(this).affix({
+        offset: {
+          top: $("#archivesSpaceSidebar").offset().top,
+          bottom: 100
+        }
+      });
+    });
+  });
   $(document).ajaxComplete(function() {
-    bindSidebarEvents();
+    initSidebar();
   });
 });
 
@@ -199,3 +222,81 @@ AS.confirmSubFormDelete = function(subformRemoveButtonEl, onConfirmCallback) {
     onConfirmCallback($(event.target));
   });
 };
+
+// Used by all tree layouts -- sets the initial height for the tree pane... but can
+// be overridden by a user's cookie value
+AS.DEFAULT_TREE_PANE_HEIGHT = 100;
+
+AS.resetScrollSpy = function() {
+  // reset the scrollspy plugin
+  // so the headers update the status of the sidebar
+  $(document.body).removeData("scrollspy");
+  $(document.body).scrollspy({
+    target: "#archivesSpaceSidebar",
+    offset: 20
+  });
+}
+
+// Add confirmation btn behaviour
+$(function() {
+  $.fn.initConfirmationAction = function() {
+    $(this).each(function() {
+
+      var $this = $(this);
+
+      if ($this.hasClass("initialised")) {
+        return;
+      }
+
+      $this.addClass("initialised");
+
+      var template_data = {
+        message: $this.data("message") || "",
+        title: $this.data("title") || "Are you sure?"
+      };
+
+      var confirmInlineFormAction = function() {
+        $this.parents("form").submit();
+      };
+
+
+      var confirmCustomAction = function() {
+        $.ajax({
+          url: $this.data("target"),
+          data: $this.data("params"),
+          type: $this.data("method"),
+          complete: function() {
+            $("#confirmChangesModal").modal("hide").remove();
+            if ($this.data("refresh")) {
+              document.location.reload;
+            }
+          }
+        });
+      };
+
+      var onClick = function(event) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        AS.openCustomModal("confirmChangesModal", template_data.title , AS.renderTemplate("confirmation_modal_template", template_data));
+        $("#confirmButton", confirmChangesModal).click(function() {
+          if ($this.parents(".btn-inline-form:first").length) {
+            confirmInlineFormAction();
+          } else {
+            confirmCustomAction
+          }
+        });
+      }
+
+      $this.click(onClick);
+    })
+  };
+
+  $(document).ready(function() {
+    $(document).ajaxComplete(function() {
+      $(".btn[data-confirmation]:not(.initialised)").initConfirmationAction();
+    });
+
+    $(".btn[data-confirmation]:not(.initialised)").initConfirmationAction();
+  });
+});

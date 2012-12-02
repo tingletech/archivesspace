@@ -6,6 +6,7 @@ class ApplicationController < ActionController::Base
   helper :all
 
   rescue_from ArchivesSpace::SessionGone, :with => :destroy_user_session
+  rescue_from ArchivesSpace::SessionExpired, :with => :destroy_user_session
 
 
   # Note: This should be first!
@@ -48,6 +49,7 @@ class ApplicationController < ActionController::Base
       model = opts[:model] || JSONModel(opts[:instance])
       obj = opts[:obj] || model.new
 
+      obj.instance_data[:find_opts] = opts[:find_opts] if opts.has_key? :find_opts
 
       fix_arrays = proc do |hash, schema|
         result = hash.clone
@@ -108,6 +110,21 @@ class ApplicationController < ActionController::Base
   end
 
 
+  def selected_page
+    if params[:page]
+      page = Integer(params[:page])
+      if page < 0
+        raise "Invalid page value"
+      end
+
+      page
+    else
+      # Default to showing the first page
+      1
+    end
+  end
+
+
   def user_needs_to_be_a_viewer
     render_403 if not user_can? 'view_repository'
   end
@@ -142,13 +159,13 @@ class ApplicationController < ActionController::Base
 
   private
 
-  def destroy_user_session
+  def destroy_user_session(exception)
     Thread.current[:backend_session] = nil
     Thread.current[:repo_id] = nil
 
     reset_session
 
-    flash[:error] = "Your backend session was not found"
+    flash[:error] = exception.message
     redirect_to :controller => :welcome, :action => :index
   end
 

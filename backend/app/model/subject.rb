@@ -6,6 +6,8 @@ class Subject < Sequel::Model(:subject)
   include ASModel
   include ExternalDocuments
 
+  set_model_scope :global
+
   many_to_many :term, :join_table => :subject_term
   many_to_many :archival_object, :join_table => :subject_archival_object
 
@@ -47,7 +49,7 @@ class Subject < Sequel::Model(:subject)
     obj = super
 
     # add a terms sha1 hash to allow for uniqueness test
-    obj.terms_sha1 = generate_terms_sha1(json)
+    obj.terms_sha1 = self.class.generate_terms_sha1(json)
     obj.save
 
     obj
@@ -57,7 +59,7 @@ class Subject < Sequel::Model(:subject)
   def self.sequel_to_jsonmodel(obj, type, opts = {})
     json = super
 
-    json.vocabulary = JSONModel(:vocabulary).uri_for(obj.vocab_id)
+    json.vocabulary = uri_for(:vocabulary, obj.vocab_id)
 
     json
   end

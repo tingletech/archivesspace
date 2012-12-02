@@ -32,7 +32,7 @@ class ArchivesSpaceService < Sinatra::Base
     .returns([200, "(:digital_object_component)"],
              [404, '{"error":"DigitalObjectComponent not found"}']) \
   do
-    json = DigitalObjectComponent.to_jsonmodel(params[:digital_object_component_id], :digital_object_component, params[:repo_id])
+    json = DigitalObjectComponent.to_jsonmodel(params[:digital_object_component_id], :digital_object_component)
 
     json_response(resolve_references(json.to_hash, params[:resolve]))
   end
@@ -45,18 +45,19 @@ class ArchivesSpaceService < Sinatra::Base
     .returns([200, "[(:digital_object_component)]"],
              [404, '{"error":"DigitalObjectComponent not found"}']) \
   do
-    digital_object = DigitalObjectComponent.get_or_die(params[:digital_object_component_id], params[:repo_id])
+    digital_object = DigitalObjectComponent.get_or_die(params[:digital_object_component_id])
     json_response(digital_object.children.map {|child|
-                    DigitalObjectComponent.to_jsonmodel(child, :digital_object_component, params[:repo_id]).to_hash})
+                    DigitalObjectComponent.to_jsonmodel(child, :digital_object_component).to_hash})
   end
 
 
   Endpoint.get('/repositories/:repo_id/digital_object_components')
     .description("Get a list of Digital Object Components for a Repository")
-    .params(["repo_id", :repo_id])
+    .params(["repo_id", :repo_id],
+            *Endpoint.pagination)
     .returns([200, "[(:digital_object_component)]"]) \
   do
-    handle_listing(DigitalObjectComponent, :digital_object_component, :repo_id => params[:repo_id])
+    handle_listing(DigitalObjectComponent, :digital_object_component, params[:page], params[:page_size], params[:modified_since])
   end
 
 end

@@ -35,7 +35,7 @@ module ASpaceImport
           ASpaceImport::Crosswalk.init(opts)
           
           i.class_eval do
-            include ASpaceImport::Crosswalk
+            extend ASpaceImport::Crosswalk
           end
         end
         i.new opts
@@ -77,26 +77,51 @@ module ASpaceImport
       
       JSONModel::set_repository(opts[:repo_id])
       
-      
       opts.each do |k,v|
         instance_variable_set("@#{k}", v)
       end
       @import_keys = []
       @goodimports = 0
-      @badimports = 0
       @import_log = []
-      @current = { }
-      @stashed = { }
+      @uri_map = {}
     end
 
-
+    def log_save_result(response)
+      @import_log << response
+      if response.code == '200'
+        @uri_map = JSON.parse(response.body)['saved']
+      end
+    end
+    
+    def report_summary
+      @import_log.map { |r| 
+        "#{r.code} -- #{r.code == '200' ? JSON.parse(r.body)['saved'].length : 'Error' }" 
+      }.join('\n')
+    end
+    
     def report
-      r = "#{@goodimports} records imported\n"
-      # puts "#{@badimports} records failed to import"
-      r += @import_log.join("\n") if @verbose
-      r
+      if @dry
+        @import_log[0]
+      else
+        report = "Aspace Import Report\n"
+        report += "--Executive Summary--\n"
+        report += report_summary
+        report += "\n--Details--\n"
+        report += @import_log.map { |r| 
+          "#{r.code}\n" + (r.code == '200'  ? JSON.parse(r.body)['saved'].map{ |k,u| "Saved: #{u}" }.join("\n") : JSON.parse(r.body).to_s)
+        }.join('\n')
+      
+        report
+      end
     end
-
+    
+    def import_log
+      @import_log
+    end
+    
+    def uri_map
+      @uri_map
+    end
 
     def run
       raise StandardError.new("Unexpected error: run method must be defined by a subclass")
