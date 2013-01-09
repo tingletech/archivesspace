@@ -3,6 +3,10 @@
 # (see config/config-distribution.rb). To investigate this see 
 # http://about.travis-ci.org/docs/user/database-setup/
 
+env:
+  global:
+    - secure: "GgeeGL/kurKF75a/xiDRtNvt+GzSPZasQdCXUXZjEvrzhJdn/1yekVajzOS1\n5d9Y5QizMQbMjL1qjlgzArn44D7qPiycRP5fh1zYUl2IJZRkbgIai3wLPLZ6\nc9gKd5STwiD8TgRht6T83FOOyG4nYPTcB2FQmCluDIzXs5tSCO8="
+
 language: ruby
 
 rvm:
@@ -18,7 +22,6 @@ branches:
     - saucelabs-travis
 
 script:
-  - secure: "GgeeGL/kurKF75a/xiDRtNvt+GzSPZasQdCXUXZjEvrzhJdn/1yekVajzOS1\n5d9Y5QizMQbMjL1qjlgzArn44D7qPiycRP5fh1zYUl2IJZRkbgIai3wLPLZ6\nc9gKd5STwiD8TgRht6T83FOOyG4nYPTcB2FQmCluDIzXs5tSCO8="
   - build/run bootstrap
   - build/run backend:test
   - build/run backend:integration
