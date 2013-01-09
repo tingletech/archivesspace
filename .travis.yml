@@ -15,6 +15,7 @@ jdk:
 branches:
   only:
     - master
+    - saucelabs-travis
 
 script:
   - secure: "GgeeGL/kurKF75a/xiDRtNvt+GzSPZasQdCXUXZjEvrzhJdn/1yekVajzOS1\n5d9Y5QizMQbMjL1qjlgzArn44D7qPiycRP5fh1zYUl2IJZRkbgIai3wLPLZ6\nc9gKd5STwiD8TgRht6T83FOOyG4nYPTcB2FQmCluDIzXs5tSCO8="
