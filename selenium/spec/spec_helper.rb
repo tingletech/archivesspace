@@ -300,14 +300,20 @@ def selenium_init
 
 
   if ENV['TRAVIS']
-    puts "Loading stable version of Firefox"
-    system('wget', 'http://aspace.hudmol.com/firefox-16.0.tar.bz2')
-    system('tar', 'xvjf', 'firefox-16.0.tar.bz2')
-    ENV['PATH'] = (File.join(Dir.getwd, 'firefox') + ':' + ENV['PATH'])
+    caps = Selenium::Webdriver::Remote::Capabilities.firefox
+    caps.platform = 'Linux'
+    caps.version = '13'
+    caps[:name] = "linux firefox16 sauce travis"
+
+    $driver = Selenium::WebDriver.for(
+      :remote,
+      :url => ENV['SAUCE_URL'],
+      :desired_capabilities => caps)
+  else
+    $driver = Selenium::WebDriver.for :firefox
   end
 
 
-  $driver = Selenium::WebDriver.for :firefox
   $driver.manage.window.maximize
 end
 
