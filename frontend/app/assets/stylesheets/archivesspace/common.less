@@ -17,6 +17,11 @@ h2 > .label {
 .breadcrumb {
   margin-top: -@baseLineHeight;
   .box-shadow(~"inset 0 -1px 0 rgba(0,0,0,.05), 0 1px 10px rgba(0,0,0,.05)");
+
+  .return-to-search {
+    margin-top: -4px;
+  }
+
 }
 
 .navbar .brand {
@@ -79,6 +84,23 @@ h2 > .label {
   }
 }
 
+.btn-busy-icon {
+  display: none;
+}
+
+.btn-primary.busy.disabled .btn-busy-icon {
+  display: inline;
+}
+
+.btn .btn-busy-label,
+.btn.busy .btn-label {
+  display: none;
+}
+
+.btn.busy .btn-busy-label {
+  display: inline;
+}
+
 #object_container {
   position: relative;
 }
@@ -94,8 +116,13 @@ h2 > .label {
     margin-right: 4px;
     min-width: 60px;
     float: left;
-    height: 1.2em;
+    height: @baseLineHeight;
+    line-height: @baseLineHeight;
   }
+}
+
+.label-only .identifier-display-part {
+  margin-top: -6px;
 }
 
 .tab-content {

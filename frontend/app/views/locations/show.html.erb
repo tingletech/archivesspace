@@ -1,4 +1,5 @@
-<%= render :partial => "shared/breadcrumb", :locals => {:trail => [link_to("Browse Locations", :controller => :locations, :action => :index), @location.id]} %>
+<%= setup_context :object => @location, :title => @location.id %>
+
 <div class="row-fluid">
    <div class="span3">
      <%= render :partial => "locations/sidebar" %>
@@ -6,11 +7,11 @@
    <div class="span9 record-pane">
      <div class="btn-group" style="float: right">
        <% if user_can?('update_repository') %>
-         <%= link_to "Edit", {:controller => :locations, :action => :edit, :id => @location.id}, :class => "btn btn-small" %>
+         <%= link_to I18n.t("actions.edit"), {:controller => :locations, :action => :edit, :id => @location.id}, :class => "btn btn-small" %>
        <% end %>
      </div>
 
-      <h2><%= @location.id %>  <span class="label label-info">Location</span></h2>
+      <h2><%= @location.id %>  <span class="label label-info"><%= I18n.t("location._html.singular") %></span></h2>
 
      <%= read_only_view(@location.to_hash) %>
 

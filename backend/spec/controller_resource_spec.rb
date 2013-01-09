@@ -8,7 +8,7 @@ describe 'Resources controller' do
 
 
   it "lets you create a resource and get it back" do
-    resource = JSONModel(:resource).from_hash("title" => "a resource", "id_0" => "abc123", "extents" => [{"portion" => "whole", "number" => "5 or so", "extent_type" => "reels"}])
+    resource = JSONModel(:resource).from_hash("title" => "a resource", "id_0" => "abc123", "level" => "collection", "language" => "eng", "extents" => [{"portion" => "whole", "number" => "5 or so", "extent_type" => "reels"}])
     id = resource.save
 
     JSONModel(:resource).find(id).title.should eq("a resource")
@@ -320,7 +320,7 @@ describe 'Resources controller' do
     
     r = create(:json_resource, 
                :deaccessions => [build(:json_deaccession, {
-                 :whole_part => test_boolean,
+                 :scope => "whole",
                  :date => build(:json_date, {
                    :begin => test_begin_date
                  }).to_hash
@@ -328,7 +328,7 @@ describe 'Resources controller' do
                )
     
     JSONModel(:resource).find(r.id).deaccessions.length.should eq(1)
-    JSONModel(:resource).find(r.id).deaccessions[0]["whole_part"].should eq(test_boolean)
+    JSONModel(:resource).find(r.id).deaccessions[0]["scope"].should eq("whole")
     JSONModel(:resource).find(r.id).deaccessions[0]["date"]["begin"].should eq(test_begin_date)
   end
 
@@ -377,5 +377,45 @@ describe 'Resources controller' do
     JSONModel(:resource).find(resource.id)[:notes].first.should eq(notes.to_hash)
   end
 
+
+  it "doesn't allow you to link to a URI outside of the current repo" do
+    resource = create(:json_resource)
+    accession = create(:json_accession)
+
+    # Rubbish!
+    resource.related_accessions = [{'ref' => "/repositories/99999/accessions/#{accession.id}"}]
+
+    expect {
+      resource.save
+    }.to raise_error(StandardError, /Invalid URI reference/)
+  end
+
+
+  it "retains order of linked agents" do
+
+    agent_a = create(:json_agent_person)
+    agent_b = create(:json_agent_family)
+
+    resource = create(:json_resource, :linked_agents => [
+                                                         {:ref => agent_a.uri, :role => 'creator'},
+                                                         {:ref => agent_b.uri, :role => 'creator'},
+                                                        ])
+
+    JSONModel(:resource).find(resource.id).linked_agents[0]['ref'].should eq(agent_a.uri)
+    JSONModel(:resource).find(resource.id).linked_agents[1]['ref'].should eq(agent_b.uri)
+
+    agent_c = create(:json_agent_corporate_entity)
+
+    resource.linked_agents = [
+      {:ref => agent_c.uri, :role => 'creator'},
+      {:ref => agent_b.uri, :role => 'creator'},
+      {:ref => agent_a.uri, :role => 'creator'},
+    ]
+    resource.save
+
+    JSONModel(:resource).find(resource.id).linked_agents[0]['ref'].should eq(agent_c.uri)
+    JSONModel(:resource).find(resource.id).linked_agents[1]['ref'].should eq(agent_b.uri)
+    JSONModel(:resource).find(resource.id).linked_agents[2]['ref'].should eq(agent_a.uri)
+  end
 
 end

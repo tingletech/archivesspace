@@ -40,23 +40,30 @@ $(function() {
 
 // add four part indentifier behaviour
 $(function() {
-  $("form").live("keyup", ".identifier-fields :input", function(event) {
-    var currentInputIndex = $(event.target).index();
-    $(event.target).parents(".identifier-fields:first").find(":input:eq("+(currentInputIndex+1)+")").each(function() {
-      if ($(event.target).val().length === 0 && $(this).val().length === 0) {
-        $(this).attr("disabled", "disabled");
-      } else {
-        $(this).removeAttr("disabled");
-      }
+  var initIdentifierFields = function() {
+    $("form:not(.navbar-form) .identifier-fields:not(.initialised)").on("keyup", ":input", function(event) {
+      $(this).addClass("initialised");
+      var currentInputIndex = $(event.target).index();
+      $(event.target).parents(".identifier-fields:first").find(":input:eq("+(currentInputIndex+1)+")").each(function() {
+        if ($(event.target).val().length === 0 && $(this).val().length === 0) {
+          $(this).attr("disabled", "disabled");
+        } else {
+          $(this).removeAttr("disabled");
+        }
+      });
     });
+  }
+  $(document).ajaxComplete(function() {
+    initIdentifierFields();
   });
+  initIdentifierFields();
 });
 
 
 // sidebar action
 $(function() {
   var bindSidebarEvents = function() {
-    $(this).on("click", ".nav a", function(event) {
+    $("#archivesSpaceSidebar .nav-list").on("click", "a", function(event) {
       event.preventDefault();
       event.stopPropagation();
 
@@ -69,12 +76,15 @@ $(function() {
       });
     });
   };
+
   var initSidebar = function() {
     $("#archivesSpaceSidebar .nav-list:not(.initialised)").each(function() {
       $.proxy(bindSidebarEvents, this)();
       $(this).affix({
         offset: {
-          top: $("#archivesSpaceSidebar").offset().top,
+          top: function() {
+            return $("#archivesSpaceSidebar").offset().top;
+          },
           bottom: 100
         }
       });
@@ -84,18 +94,6 @@ $(function() {
 
   initSidebar();
 
-  // If the tree pane resizes, then we need to reset the offsets of the
-  // affixed sidebar.
-  $(window).bind("resize.tree", function() {
-    $("#archivesSpaceSidebar .nav-list.initialised").each(function() {
-      $(this).affix({
-        offset: {
-          top: $("#archivesSpaceSidebar").offset().top,
-          bottom: 100
-        }
-      });
-    });
-  });
   $(document).ajaxComplete(function() {
     initSidebar();
   });
@@ -117,6 +115,40 @@ $(function() {
     initDateFields();
   });
   $(document).bind("new.subrecord, init.subrecord", initDateFields);
+});
+
+
+// any element with a popover!
+$(function() {
+  var initPopovers = function() {
+    $(".has-popover:not(.initialised)")
+      .popover()
+      .click(function(e) {
+        e.preventDefault()
+      }).addClass("initialised");
+  };
+  initPopovers();
+  $(document).ajaxComplete(function() {
+    initPopovers();
+  });
+  $(document).bind("new.subrecord, init.subrecord, init.popovers", initPopovers);
+});
+
+
+// allow click of a submenu link
+$(function() {
+  var initSubmenuLink = function() {
+    $(".dropdown-submenu > a:not(.initialised)").click(function(e) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      $(this).focus();
+    }).addClass("initialised");
+  };
+  initSubmenuLink();
+  $(document).ajaxComplete(function() {
+    initSubmenuLink();
+  });
+  $(document).bind("new.subrecord, init.subrecord, init.popovers", initSubmenuLink);
 });
 
 
@@ -165,22 +197,38 @@ AS.openCustomModal = function(id, title, contents) {
 };
 
 
-$.fn.serializeObject = function()
-{
+$.fn.serializeObject = function() {
     var o = {};
-    var a = this.serializeArray();
-    $.each(a, function() {
+
+    if ($(this).is("form")) {
+      var a = this.serializeArray();
+      $.each(a, function() {
         if (o[this.name] !== undefined) {
-            if (!o[this.name].push) {
-                o[this.name] = [o[this.name]];
-            }
-            o[this.name].push(this.value || '');
+          if (!o[this.name].push) {
+            o[this.name] = [o[this.name]];
+          }
+          o[this.name].push(this.value || '');
         } else {
-            o[this.name] = this.value || '';
+          o[this.name] = this.value || '';
         }
-    });
+      });
+    } else {
+      // NOTE: THIS DOESN'T WORK FOR RADIO ELEMENTS (YET)
+      $(":input", this).each(function() {
+        o[this.name] = $(this).val();
+      });
+    }
+
     return o;
 };
+
+$.fn.setValuesFromObject = function(obj) {
+  // NOTE: THIS DOESN'T WORK FOR RADIO ELEMENTS (YET)
+  var $this = this;
+  $.each(obj, function(name, value) {
+    $("[name='"+name+"']", $this).val(value);
+  });
+}
 
 
 AS.addControlGroupHighlighting = function(parent) {
@@ -235,6 +283,31 @@ AS.resetScrollSpy = function() {
     target: "#archivesSpaceSidebar",
     offset: 20
   });
+}
+
+// Sub Record Sorting
+AS.initSubRecordSorting = function($list) {
+  if ($list.length) {
+    $list.children("li").each(function() {
+      var $child = $(this);
+      if (!$child.hasClass("sort-enabled")) {
+        var $handle = $("<div class='drag-handle'></div>");
+        if ($list.parent().hasClass("controls")) {
+          $handle.addClass("inline");
+        }
+        $(this).append($handle);
+        $(this).addClass("sort-enabled");
+      }
+    });
+    $list.sortable('destroy').sortable({
+      items: 'li',
+      handle: ' > .drag-handle',
+      forcePlaceholderSize: true
+    });
+    $list.off("sortupdate").on("sortupdate", function() {
+      $("#object_container form").triggerHandler("form-changed");
+    });
+  }
 }
 
 // Add confirmation btn behaviour

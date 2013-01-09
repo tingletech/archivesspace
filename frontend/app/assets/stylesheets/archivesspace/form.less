@@ -26,6 +26,16 @@ fieldset {
       }
     }
   }
+  em {
+    color: #999;
+    font-style: normal;
+  }
+}
+
+form .control-group.required {
+  .control-label {
+    font-weight: bold;
+  }
 }
 
 .control-group.active {
@@ -36,6 +46,17 @@ fieldset {
 .control-group .controls.label-only {
   line-height: 18px;
   padding-top: 6px;
+}
+
+.inline-subform {
+  margin: 4px 0;
+  border-top: 1px solid #E5E5E5;
+  background-color: #fafafa;
+  border-bottom: 1px solid #E5E5E5;
+}
+
+.control-group .inline-subform {
+  margin-left: -180px;
 }
 
 /* identifier fields */
@@ -168,6 +189,9 @@ section h3 {
 }
 
 .as-nav-list {
+  .btn-group {
+    width: 100%;
+  }
   .btn-submit-group {
     width: 100%;
     button:first-child {
@@ -266,7 +290,7 @@ section h3 {
       border: 1px solid #DDD;
       .border-radius(4px);
       margin-top: 10px;
-      padding-bottom: 10px;
+      padding: 10px;
 
       > .subrecord-form-heading {
         line-height: 36px;
@@ -289,8 +313,42 @@ section h3 {
       display: none;
     }
   }
+
+  .subrecord-form-inline {
+    margin-bottom: 8px;
+  }
 }
 
+ul.subrecord-form-list {
+  margin: 0;
+  > li {
+    list-style: none;
+    position: relative;
+  }
+  .sortable-placeholder {
+    border: 1px dashed #CCC;
+    margin: 10px 0;
+  }
+  .drag-handle {
+    position: absolute;
+    left: 5px;
+    top: 5px;
+    height: 30px;
+    width: 30px;
+    background-image: url(../../archivesspace/drag_handle_btn.png);
+    background-repeat: no-repeat;
+    cursor: move;
+
+    &.inline {
+      top: 0;
+    }
+  }
+
+  .sort-enabled > .subrecord-form-fields > .subrecord-form-heading,
+  .sort-enabled > .subrecord-form-inline {
+    padding-left: 40px;
+  }
+}
 
 .alert pre {
   background-color: transparent;

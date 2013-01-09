@@ -2,8 +2,8 @@ class Repository < Sequel::Model(:repository)
   include ASModel
 
   set_model_scope :global
+  corresponds_to JSONModel(:repository)
 
-  plugin :validation_helpers
 
   def validate
     super
@@ -40,9 +40,11 @@ class Repository < Sequel::Model(:repository)
                          :grants_permissions => ["view_repository"]
                        }]
 
-    standard_groups.each do |group_data|
-      Group.create_from_json(JSONModel(:group).from_hash(group_data),
-                             :repo_id => self.id)
+    RequestContext.open(:repo_id => self.id) do
+      standard_groups.each do |group_data|
+        Group.create_from_json(JSONModel(:group).from_hash(group_data),
+                               :repo_id => self.id)
+      end
     end
 
     Webhooks.notify("REPOSITORY_CHANGED")

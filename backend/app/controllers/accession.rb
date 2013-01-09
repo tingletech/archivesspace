@@ -41,7 +41,7 @@ class ArchivesSpaceService < Sinatra::Base
             *Endpoint.pagination)
     .returns([200, "[(:accession)]"]) \
   do
-    handle_listing(Accession, :accession,
+    handle_listing(Accession,
                    params[:page], params[:page_size],
                    params[:modified_since])
   end
@@ -55,8 +55,21 @@ class ArchivesSpaceService < Sinatra::Base
              :optional => true])
     .returns([200, "(:accession)"]) \
   do
-    json = Accession.to_jsonmodel(params[:accession_id], :accession)
+    json = Accession.to_jsonmodel(params[:accession_id])
 
     json_response(resolve_references(json.to_hash, params[:resolve]))
   end
+
+
+  Endpoint.get('/repositories/:repo_id/accessions/:accession_id/tree')
+    .description("Get the tree of resources that relate to an Accession")
+    .params(["accession_id", Integer, "The accession ID"],
+            ["repo_id", :repo_id])
+    .returns([200, "(:accession_tree)"]) \
+  do
+    accession = Accession.get_or_die(params[:accession_id])
+
+    json_response(accession.tree)
+  end
+
 end

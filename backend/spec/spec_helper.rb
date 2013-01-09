@@ -24,6 +24,8 @@ if ENV['COVERAGE_REPORTS'] == 'true'
   SimpleCov.start do
     # Not useful to include these since the test suite deliberately doesn't load
     # most of these files.
+    add_filter "controllers/setup.rb"
+    add_filter "lib/webrick_fix.rb"
     add_filter "lib/bootstrap.rb"
     add_filter "lib/logging.rb"
     add_filter "config/"
@@ -71,9 +73,9 @@ require 'rack/test'
 require_relative "../app/lib/bootstrap"
 AppConfig[:search_user_secret] = "abc123"
 
-
 JSONModel::init(:client_mode => true, :strict_mode => true,
-                :url => 'http://example.com')
+                :url => 'http://example.com', :allow_other_unmapped => true,
+                :priority => :high)
 
 module JSONModel
   module HTTP
@@ -159,6 +161,13 @@ class ArchivesSpaceService
   def current_user
     Thread.current[:active_test_user]
   end
+
+  def high_priority_request?
+    # Always treat the request as high priority to make sure updates get sent to
+    # the realtime indexer.
+    true
+  end
+
 end
 
 
@@ -180,6 +189,24 @@ def as_test_user(username)
     if RequestContext.active?
       RequestContext.put(:enforce_suppression,
                          !Thread.current[:active_test_user].can?(:manage_repository))
+    end
+
+    yield
+  ensure
+    RequestContext.put(:enforce_suppression, orig) if RequestContext.active?
+    Thread.current[:active_test_user] = old_user
+  end
+end
+
+def as_anonymous_user
+  old_user = Thread.current[:active_test_user]
+  orig = RequestContext.get(:enforce_suppression)
+
+  Thread.current[:active_test_user] = AnonymousUser.new
+
+  begin
+    if RequestContext.active?
+      RequestContext.put(:enforce_suppression, true)
     end
 
     yield

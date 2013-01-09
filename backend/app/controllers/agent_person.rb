@@ -10,6 +10,15 @@ class ArchivesSpaceService < Sinatra::Base
   end
 
 
+  Endpoint.get('/agents/people')
+  .description("List all person agents")
+  .params(*Endpoint.pagination)
+  .returns([200, "[(:agent_person)]"]) \
+  do
+    handle_listing(AgentPerson, params[:page], params[:page_size], params[:modified_since])
+  end
+
+
   Endpoint.post('/agents/people/:agent_id')
     .description("Update a person agent")
     .params(["agent_id", Integer, "The ID of the agent to update"],
@@ -27,8 +36,7 @@ class ArchivesSpaceService < Sinatra::Base
     .returns([200, "(:agent)"],
              [404, '{"error":"Agent not found"}']) \
   do
-    json_response(AgentPerson.to_jsonmodel(AgentPerson.get_or_die(params[:id]),
-                                           :agent_person))
+    json_response(AgentPerson.to_jsonmodel(AgentPerson.get_or_die(params[:id])))
   end
 
 end

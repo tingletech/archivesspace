@@ -1,9 +1,11 @@
 //= require tree
+//= require resources.crud
 //= require dates.crud
 //= require agents.crud
 //= require subjects.crud
 //= require deaccessions.crud
 //= require subrecord.crud
+//= require rights_statements.crud
 
 $(function() {
 

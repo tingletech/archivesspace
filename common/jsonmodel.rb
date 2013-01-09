@@ -59,13 +59,22 @@ module JSONModel
   end
 
 
+  def self.repository_for(reference)
+    if reference =~ /^(\/repositories\/[0-9]+)\//
+      return $1
+    else
+      return nil
+    end
+  end
+
+
   # Parse a URI reference like /repositories/123/archival_objects/500 into
   # {:id => 500, :type => :archival_object}
   def self.parse_reference(reference, opts = {})
     @@models.each do |type, model|
       id = model.id_for(reference, opts, true)
       if id
-        return {:id => id, :type => type}
+        return {:id => id, :type => type, :repository => repository_for(reference)}
       end
     end
 
@@ -92,6 +101,21 @@ module JSONModel
   end
 
 
+  def self.allow_unmapped_enum_value(val, magic_value = 'other_unmapped')
+    if val.is_a? Array
+      val.each { |elt| allow_unmapped_enum_value(elt) }
+    elsif val.is_a? Hash
+      val.each do |k, v|
+        if k == 'enum'
+          v << magic_value
+         else
+          allow_unmapped_enum_value(v)
+        end
+      end
+    end
+  end
+
+
   def self.load_schema(schema_name)
     if not @@models[schema_name]
 
@@ -109,7 +133,7 @@ module JSONModel
         load_schema(parent)
 
         base = @@models[parent].schema["properties"].clone
-        properties = base.merge(entry[:schema]["properties"])
+        properties = self.deep_merge(base, entry[:schema]["properties"])
 
         entry[:schema]["properties"] = properties
       end
@@ -120,6 +144,9 @@ module JSONModel
       # All records must indicate their model type
       entry[:schema]["properties"]["jsonmodel_type"] = {"type" => "string", "ifmissing" => "error"}
 
+      if @@init_args[:allow_other_unmapped]
+        allow_unmapped_enum_value(entry[:schema]['properties'])
+      end
 
       self.create_model_for(schema_name, entry[:schema])
     end
@@ -164,6 +191,18 @@ module JSONModel
     end
   end
 
+  # Recursively overlays hash2 onto hash 1 
+  def self.deep_merge(hash1, hash2)
+    target = hash1.dup 
+    hash2.keys.each do |key|
+      if hash2[key].is_a? Hash and hash1[key].is_a? Hash
+        target[key] = self.deep_merge(target[key], hash2[key])
+        next
+      end
+      target[key] = hash2[key]
+    end
+    target
+  end
 
   protected
 
@@ -410,7 +449,6 @@ module JSONModel
       end
 
 
-      # Zap this?  A bit arbitrary
       def _warnings
         exceptions = self._exceptions
 
@@ -498,7 +536,14 @@ module JSONModel
         end
       end
 
-
+      # Given a hash representing a record tree, map across the hash and this
+      # model's schema in lock step.
+      #
+      # Each proc in the 'transformations' array is called with the current node
+      # in the record tree as its first argument, and the part of the schema
+      # that corresponds to it.  Whatever the proc returns is used to replace
+      # the node in the record tree.
+      #
       def self.map_hash_with_schema(hash, schema = nil, transformations = [])
         if schema.nil?
           return self.map_hash_with_schema(hash, self.schema, transformations)
@@ -587,7 +632,6 @@ module JSONModel
 
       ## Supporting methods following from here
       protected
-
 
       def self.drop_unknown_properties(hash, schema = nil)
         fn = proc do |hash, schema|

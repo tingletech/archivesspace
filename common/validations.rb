@@ -23,17 +23,18 @@ module JSONModel::Validations
     end
   end
 
+  # Specification:
+  # https://www.pivotaltracker.com/story/show/41430143
   def self.check_source(hash)
     errors = []
 
-    if hash["authority_id"].nil? && hash["source"].nil?
-      if hash["rules"].nil?
-        errors << ["rules", "is required"]
+    if hash["source"].nil?
+      if hash["rules"].nil? 
+        errors << ["rules", "is required when 'source' is blank"]
+        errors << ["source", "is required when 'rules' is blank"]
+      elsif hash["authority_id"]
+        errors << ["source", "is required if there is an authority id"]
       end
-    elsif hash["authority_id"].nil?
-      errors << ["authority_id", "is required"]
-    elsif hash["source"].nil?
-      errors << ["source", "is required"]
     end
 
     errors
@@ -51,8 +52,8 @@ module JSONModel::Validations
   def self.check_date(hash)
     errors = []
 
-    if hash["date_type"] === "expression"
-      errors << ["expression", "is required"] if hash["expression"].nil?
+    if hash["expression"].nil? and hash["date_type"].nil?
+      errors << ["date_type", "is required"]
     elsif hash["date_type"] === "single"
       errors << ["begin", "is required"] if hash["begin"].nil?
     elsif hash["date_type"] === "inclusive" || hash["date_type"] === "bulk"
@@ -100,18 +101,17 @@ module JSONModel::Validations
   def self.check_location(hash)
     errors = []
 
-    if hash["coordinate_1_indicator"].nil? and hash["coordinate_1_label"].nil?
-      errors << ["barcode", "is required"] if hash["barcode"].nil? and hash["classification"].nil?
-      errors << ["classification", "is required"] if hash["classification"].nil? and hash["barcode"].nil?
-    end
+    # When creating a location, a minimum of one of the following is required:
+    #   * Barcode
+    #   * Classification
+    #   * Coordinate 1 Label AND Coordinate 1 Indicator
+    required_location_fields = [["barcode"],
+                                ["classification"],
+                                ["coordinate_1_indicator", "coordinate_1_label"]]
 
-    if hash["barcode"].nil? and hash["classification"].nil?
-      errors << ["coordinate_1_label", "is required"] if hash["coordinate_1_label"].nil?
+    if !required_location_fields.any? { |fieldset| fieldset.all? {|field| hash[field]} }
+      errors << :location_fields_error
     end
-
-    errors << ["coordinate_1_indicator", "is required"] if hash["coordinate_1_indicator"].nil? and not hash["coordinate_1_label"].nil?
-    errors << ["coordinate_2_indicator", "is required"] if hash["coordinate_2_indicator"].nil? and not hash["coordinate_2_label"].nil?
-    errors << ["coordinate_3_indicator", "is required"] if hash["coordinate_3_indicator"].nil? and not hash["coordinate_3_label"].nil?
 
     errors
   end
@@ -190,4 +190,39 @@ module JSONModel::Validations
     end
   end
 
+
+  def self.check_resource(hash)
+    errors = []
+
+    if hash["level"] === "otherlevel"
+      errors << ["other_level", "is required"] if hash["other_level"].nil?
+    end
+
+    errors
+  end
+
+
+  if JSONModel(:resource)
+    JSONModel(:resource).add_validation("check_resource") do |hash|
+      check_resource(hash)
+    end
+  end
+
+
+  def self.check_archival_object(hash)
+    errors = []
+
+    if hash["level"] === "otherlevel"
+      errors << ["other_level", "is required"] if hash["other_level"].nil?
+    end
+
+    errors
+  end
+
+
+  if JSONModel(:archival_object)
+    JSONModel(:archival_object).add_validation("check_archival_object") do |hash|
+      check_archival_object(hash)
+    end
+  end
 end

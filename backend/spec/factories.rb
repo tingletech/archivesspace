@@ -1,5 +1,10 @@
 require 'factory_girl'
 
+def sample(enum)
+  enum.reject {|i| i === 'other_unmapped' }.sample
+end
+  
+
 FactoryGirl.define do
   
   to_create{|instance| instance.save}
@@ -22,27 +27,28 @@ FactoryGirl.define do
   sequence(:barcode) { 20.times.map { rand(2)}.join }
   sequence(:indicator) { (2+rand(3)).times.map { (2+rand(3)).times.map {rand(9)}.join }.join('-') }
   
-  sequence(:name_rule) { JSONModel(:abstract_name).schema['properties']['rules']['enum'].sample }
-  sequence(:level) { %w(series subseries otherlevel)[rand(3)] }
+  sequence(:name_rule) { sample(JSONModel(:abstract_name).schema['properties']['rules']['enum']) }
+  sequence(:level) { %w(series subseries item)[rand(3)] }
   sequence(:term) { |n| "Term #{n}" }
-  sequence(:term_type) { JSONModel(:term).schema['properties']['term_type']['enum'].sample }
+  sequence(:term_type) { sample(JSONModel(:term).schema['properties']['term_type']['enum']) }
 
-  sequence(:agent_role) { JSONModel(:event).schema['properties']['linked_agents']['items']['properties']['role']['enum'].sample }
-  sequence(:record_role) { JSONModel(:event).schema['properties']['linked_records']['items']['properties']['role']['enum'].sample }
+  sequence(:agent_role) { sample(JSONModel(:event).schema['properties']['linked_agents']['items']['properties']['role']['enum']) }
+  sequence(:record_role) { sample(JSONModel(:event).schema['properties']['linked_records']['items']['properties']['role']['enum']) }
   
-  sequence(:date_type) { JSONModel(:date).schema['properties']['date_type']['enum'].sample }
-  sequence(:date_lable) { JSONModel(:date).schema['properties']['label']['enum'].sample }
+  sequence(:date_type) { sample(JSONModel(:date).schema['properties']['date_type']['enum']) }
+  sequence(:date_lable) { sample(JSONModel(:date).schema['properties']['label']['enum']) }
   
-  sequence(:event_type) { JSONModel(:event).schema['properties']['event_type']['enum'].sample }
-  sequence(:extent_type) { JSONModel(:extent).schema['properties']['extent_type']['enum'].sample }
-  sequence(:portion) { JSONModel(:extent).schema['properties']['portion']['enum'].sample }
-  sequence(:instance_type) { JSONModel(:instance).schema['properties']['instance_type']['enum'].sample }
+  sequence(:event_type) { sample(JSONModel(:event).schema['properties']['event_type']['enum']) }
+  sequence(:extent_type) { sample(JSONModel(:extent).schema['properties']['extent_type']['enum']) }
+  sequence(:portion) { sample(JSONModel(:extent).schema['properties']['portion']['enum']) }
+  sequence(:instance_type) { sample(JSONModel(:instance).schema['properties']['instance_type']['enum']) }
  
-  sequence(:rights_type) { JSONModel(:rights_statement).schema['properties']['rights_type']['enum'].sample }
-  sequence(:ip_status) { JSONModel(:rights_statement).schema['properties']['ip_status']['enum'].sample }
+  sequence(:rights_type) { sample(JSONModel(:rights_statement).schema['properties']['rights_type']['enum']) }
+  sequence(:ip_status) { sample(JSONModel(:rights_statement).schema['properties']['ip_status']['enum']) }
+  sequence(:jurisdiction) { sample(JSONModel(:rights_statement).schema['properties']['jurisdiction']['enum']) }
   
-  sequence(:container_location_status) { JSONModel(:container_location).schema['properties']['status']['enum'].sample } 
-  sequence(:temporary_location_type) { JSONModel(:location).schema['properties']['temporary']['enum'].sample }
+  sequence(:container_location_status) { sample(JSONModel(:container_location).schema['properties']['status']['enum']) } 
+  sequence(:temporary_location_type) { sample(JSONModel(:location).schema['properties']['temporary']['enum']) }
   
   # AS Models
   
@@ -67,6 +73,8 @@ FactoryGirl.define do
     title { generate(:generic_title) }
     id_0 { generate(:alphanumstr) }
     id_1 { generate(:alphanumstr) }
+    level 'collection'
+    language 'eng'
   end
   
   factory :extent do
@@ -81,6 +89,7 @@ FactoryGirl.define do
     title { generate(:generic_title) }
     repo_id nil
     ref_id { generate(:alphanumstr) }
+    level 'item'
     root_record_id nil
     parent_id nil
   end
@@ -156,7 +165,7 @@ FactoryGirl.define do
   end
   
   factory :json_deaccession, class: JSONModel(:deaccession) do
-    whole_part { rand(2) == 1?true:false }
+    scope { "whole" }
     description { generate(:generic_description) }
     date { build(:json_date).to_hash }
   end
@@ -224,7 +233,7 @@ FactoryGirl.define do
     rules { generate(:name_rule) }
     primary_name { generate(:generic_name) }
     sort_name { generate(:sort_name) }
-    direct_order 'standard'
+    name_order 'direct'
   end
   
   factory :json_name_software, class: JSONModel(:name_software) do
@@ -237,6 +246,8 @@ FactoryGirl.define do
     title { "Resource #{generate(:generic_title)}" }
     id_0 { generate(:alphanumstr) }
     extents { [build(:json_extent).to_hash] }
+    level 'collection'
+    language 'eng'
   end
   
   factory :json_repo, class: JSONModel(:repository) do
@@ -248,19 +259,25 @@ FactoryGirl.define do
   factory :json_rights_statement, class: JSONModel(:rights_statement) do
     rights_type 'intellectual_property'
     ip_status { generate(:ip_status) }
-    jurisdiction { generate(:alphanumstr) }
+    jurisdiction { generate(:jurisdiction) }
     active true
   end
   
   factory :json_subject, class: JSONModel(:subject) do
-    terms { [build(:json_term)] }
+    terms { [build(:json_term).to_hash] }
     vocabulary { create(:json_vocab).uri }
+    ref_id { generate(:url) }
   end
   
   factory :json_term, class: JSONModel(:term) do
     term { generate(:term) }
     term_type { generate(:term_type) }
     vocabulary { create(:json_vocab).uri }
+  end
+  
+  factory :json_user, class: JSONModel(:user) do
+    username { generate(:username) }
+    name { generate(:generic_name) }
   end
   
   factory :json_vocab, class: JSONModel(:vocabulary) do

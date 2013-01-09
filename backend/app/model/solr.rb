@@ -9,7 +9,9 @@ class Solr
   end
 
 
-  def self.search(query, page, page_size, record_type = nil, show_suppressed = false)
+  def self.search(query, page, page_size, repo_id,
+                  record_types = nil, show_suppressed = false,
+                  excluded_ids = [])
     url = solr_url
 
     opts = {
@@ -19,14 +21,21 @@ class Solr
       :qf => "title^2 fullrecord",
       :start => (page - 1) * page_size,
       :rows => page_size,
+      :fq => "repository:\"/repositories/#{repo_id}\" OR repository:global"
     }.to_a
 
-    if record_type
-      opts << [:fq, "type:\"#{record_type}\""]
+    if record_types
+      query = record_types.map { |type| "\"#{type}\"" }.join(' OR ')
+      opts << [:fq, "types:(#{query})"]
     end
 
     if !show_suppressed
       opts << [:fq, "suppressed:false"]
+    end
+
+    if excluded_ids && !excluded_ids.empty?
+      query = excluded_ids.map { |id| "\"#{id}\"" }.join(' OR ')
+      opts << [:fq, "-id:(#{query})"]
     end
 
     url.path = "/select"
@@ -50,7 +59,11 @@ class Solr
         result['offset_last'] = [(json['response']['start'] + page_size), json['response']['numFound']].min
         result['total_hits'] = json['response']['numFound']
 
-        result['results'] = json['response']['docs']
+        result['results'] = json['response']['docs'].map {|doc|
+          doc['uri'] = doc['id']
+          doc['jsonmodel_type'] = doc['primary_type']
+          doc
+        }
 
         return result
       else

@@ -40,7 +40,12 @@ class ApplicationController < ActionController::Base
       # The UI may pass JSON blobs for linked resources for the purposes of displaying its form.
       # Deserialise these so the corresponding objects are stored on the JSONModel.
       (params[opts[:instance]]["resolved"] or []).each do |property, value|
-        values =  value.collect {|json| JSON(json) if json and not json.empty?}.reject {|e| e.nil?}
+        if value.is_a?(Hash)
+          values = {}
+          value.each_pair {|k,json| values[k] = JSON(json) if json and not json.empty?}
+        else
+          values =  value.collect {|json| JSON(json) if json and not json.empty?}.reject {|e| e.nil?}
+        end
         params[opts[:instance]]["resolved"][property] = values
       end
 
@@ -51,12 +56,21 @@ class ApplicationController < ActionController::Base
 
       obj.instance_data[:find_opts] = opts[:find_opts] if opts.has_key? :find_opts
 
+      # Param validations that don't have to do with the JSON validator
+      opts[:params_check].call(obj, params) if opts[:params_check]
+
       fix_arrays = proc do |hash, schema|
         result = hash.clone
 
         schema['properties'].each do |property, definition|
-          if definition['type'] == 'array' and result[property].is_a?(Hash)
-            result[property] = result[property].sort_by {|k, _| k}.map {|_, v| v}
+          if definition['type'] == 'array' && result[property].is_a?(Hash)
+            if definition['items']['type'].is_a?(String) && definition['items']['type'].match(/^JSON.*(uri|uri_or_object)$/)
+              result['resolved'] ||= {}
+              result['resolved'][property] = result[property].map {|_, v| v['resolved'] ? JSON(v['resolved']['ref']) : nil}
+              result[property] = result[property].map {|_, v| v['ref'] || v}
+            else
+              result[property] = result[property].map {|_, v| v}
+            end
           end
         end
 
@@ -83,7 +97,7 @@ class ApplicationController < ActionController::Base
 
       instance = model.map_hash_with_schema(params[opts[:instance]],
                                                                  nil,
-                                                                 [fix_arrays, set_false_for_checkboxes])
+                                                                 [fix_arrays, set_false_for_checkboxes])                                                          
 
       if opts[:replace] || opts[:replace].nil?
         obj.replace(instance)
@@ -99,8 +113,17 @@ class ApplicationController < ActionController::Base
         instance_variable_set("@exceptions".intern, obj._exceptions)
         return opts[:on_invalid].call
       end
+      
+      if obj._exceptions[:errors]      
+        instance_variable_set("@exceptions".intern, obj._exceptions)
+        return opts[:on_invalid].call 
+      end
 
-      id = obj.save
+      if opts[:instance] == :user and !params['user']['password'].blank?
+        id = obj.save(:password => params['user']['password'])
+      else
+        id = obj.save
+      end
       opts[:on_valid].call(id)
     rescue JSONModel::ValidationException => e
       # Throw the form back to the user to display error messages.
@@ -135,6 +158,18 @@ class ApplicationController < ActionController::Base
 
   def user_needs_to_be_a_manager
     render_403 if not user_can? 'manage_repository'
+  end
+  
+  def user_needs_to_be_a_user
+    render_403 if not session['user']
+  end
+  
+  def user_needs_to_be_a_user_manager
+    render_403 if not user_can? 'manage_users'
+  end
+  
+  def user_needs_to_be_a_user_manager_or_new_user
+    render_403 if session['user'] and not user_can? 'manage_users'
   end
 
   helper_method :user_can?
@@ -235,5 +270,16 @@ class ApplicationController < ActionController::Base
   def render_403
     render "/403"
   end
+
+
+  # FIXME: a gross workaround while we reconcile the differences between the way
+  # accessions are linked and the way subjects are linked.  Soon we'll move
+  # everything over to use this new 'ref' syntax.
+  def munge_related(hash, property)
+    if hash[property]
+      hash[property] = hash[property].map {|uri| {'ref' => uri}}
+    end
+  end
+
 
 end

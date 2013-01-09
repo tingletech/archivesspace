@@ -26,6 +26,10 @@ ArchivesSpace::Application.routes.draw do
   end
   match 'repository/select/:id' => 'repository#select', :via => [:post]
 
+  match 'users/:id/edit' => 'users#edit', :via => [:get]
+  match 'users/new' => 'users#new', :via => [:get]
+  match 'users/:id' => 'users#show', :via => [:get]
+  match 'users/:id' => 'users#update', :via => [:post]
   resources :users
 
   resources :groups
@@ -51,20 +55,15 @@ ArchivesSpace::Application.routes.draw do
   match 'resources/:id/download_ead' => 'exports#download_ead', :via => [:get]
   match 'resources/:id' => 'resources#update', :via => [:post]
 
-
-  match 'subjects/list' => 'subjects#list', :via => [:get]
   resources :subjects
   match 'subjects/:id' => 'subjects#update', :via => [:post]
 
-  match 'locations/list' => 'locations#list', :via => [:get]
   resources :locations
   match 'locations/:id' => 'locations#update', :via => [:post]
 
-  match 'events/listrecords' => 'events#listrecords', :via => [:get]
   resources :events
   match 'events/:id' => 'events#update', :via => [:post]
 
-  match 'agents/list' => 'agents#list', :via => [:get]
   match 'agents/contact_form' => 'agents#contact_form', :via => [:get]
   match 'agents/:type/name_form' => 'agents#name_form', :via => [:get]
   match 'agents/:type/create' => 'agents#create', :via => [:post]
@@ -74,13 +73,15 @@ ArchivesSpace::Application.routes.draw do
   match 'agents/:type/:id' => 'agents#show', :via => [:get]
   match 'agents' => 'agents#index', :via => [:get]
 
-  match 'collection_management_records/listrecords' => 'collection_management_records#listrecords', :via => [:get]
   resources :collection_management_records
   match 'collection_management_records/:id' => 'collection_management_records#update', :via => [:post]
 
   match 'test/shutdown' => 'tests#shutdown', :via => [:get]
 
   match 'search' => 'search#do_search', :via => [:get]
+
+  match 'resolve/edit' => 'resolver#resolve_edit', :via => [:get]
+  match 'resolve/readonly' => 'resolver#resolve_readonly', :via => [:get]
 
 
   # Sample resource route with options:

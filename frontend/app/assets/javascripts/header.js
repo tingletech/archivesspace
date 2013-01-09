@@ -50,6 +50,21 @@ $(function() {
     });
   });
 
+  // Show Repo popover if there are no repositories and we're on the front page
+  if (window.location.pathname === APP_PATH) {
+    if ($(".repository-label.has-popover.empty").length) {
+      $(".repository-label.has-popover.empty").popover('show');
+      $(".user-container .navbar-inset-label .popover .btn.btn-mini.dropdown-toggle").click(function() {
+        $(".user-container > .input-append > .btn").trigger("click");
+        setTimeout(function() {
+          $(".user-container > .input-append").addClass("open");
+        });
+      });
+      $('.navbar .btn').click(function() {
+        $(".repository-label.has-popover.empty").popover('destroy');
+      });
+    }
+  }
 
   // Keyboard handling for dropdown submenus
   $('.nav a').on("focus", function() {
@@ -80,15 +95,4 @@ $(function() {
     $form.submit();
   });
 
-
-  // Repo/User label sizing
-  $(".nav .repository-label:not(.empty), .nav .user-label:not(.empty)").on("focus mouseenter", function() {
-    var width = 5;
-    $(this).find("span").each(function() {
-      width += $(this).width();
-    });
-    $(this).css("width", width);
-  }).on("blur mouseleave", function() {
-      $(this).css("width", "");
-  })
 });

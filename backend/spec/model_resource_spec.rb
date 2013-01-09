@@ -27,6 +27,25 @@ describe 'Resource model' do
   end
 
 
+  it "Doesn't enforce ID uniqueness between repositories" do
+    repo1 = make_test_repo("REPO1")
+    repo2 = make_test_repo("REPO2")
+
+    expect {
+      [repo1, repo2].each do |repo_id|
+        Resource.create_from_json(build(:json_resource,
+                                         {
+                                           :id_0 => "1234",
+                                           :id_1 => "5678",
+                                           :id_2 => "9876",
+                                           :id_3 => "5432"
+                                         }),
+                                   :repo_id => repo_id)
+      end
+    }.to_not raise_error
+  end
+
+
   it "Allows resources to be created with a date" do
     
     opts = {:dates => [build(:json_date).to_hash]}
@@ -55,7 +74,7 @@ describe 'Resource model' do
 
     expect {
       RequestContext.put(:repo_id, nil)
-      Resource.to_jsonmodel(resource[:id], :resource)
+      Resource.to_jsonmodel(resource[:id])
     }.to raise_error
   end
 
@@ -69,6 +88,22 @@ describe 'Resource model' do
     Resource[resource[:id]].instance.length.should eq(1)
     Resource[resource[:id]].instance[0].instance_type.should eq(opts[:instances][0]['instance_type'])
     Resource[resource[:id]].instance[0].container.first.type_1.should eq(opts[:instances][0]['container']['type_1'])
+  end
+
+
+  it "throws an error when no language is provided" do
+
+    opts = {:language => nil}
+
+    expect { create_resource(opts) }.to raise_error
+  end
+
+
+  it "throws an error if 'level' is 'otherlevel' and 'other level' isn't provided" do
+
+    opts = {:level => "otherlevel", :other_level => nil}
+
+    expect { create_resource(opts) }.to raise_error
   end
 
 end

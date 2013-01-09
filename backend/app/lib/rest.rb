@@ -4,6 +4,10 @@ module RESTHelpers
 
 
   def resolve_reference(uri)
+    if uri.is_a? Hash
+      uri = uri['ref']
+    end
+
     if !JSONModel.parse_reference(uri).nil?
       JSON.parse(redirect_internal(uri)[2].join(""), :max_nesting => false)
     else
@@ -13,7 +17,8 @@ module RESTHelpers
 
 
   def resolve_references(value, properties_to_resolve)
-    return value if properties_to_resolve.nil?
+    # If ASPACE_REENTRANT is set, don't resolve anything or we risk creating loops.
+    return value if (properties_to_resolve.nil? || env['ASPACE_REENTRANT'])
 
     if value.is_a? Hash
       resolved = {}
@@ -33,6 +38,48 @@ module RESTHelpers
     end
 
     value
+  end
+
+
+  module ResponseHelpers
+
+    # Redispatch the current request to a different route handler.
+    def redirect_internal(url)
+      call env.merge("PATH_INFO" => url, "ASPACE_REENTRANT" => true)
+    end
+
+
+    def json_response(obj, status = 200)
+      [status, {"Content-Type" => "application/json"}, [obj.to_json(:max_nesting => false) + "\n"]]
+    end
+
+
+    def modified_response(type, obj, jsonmodel = nil)
+      response = {:status => type, :id => obj[:id], :lock_version => obj[:lock_version], :stale => obj.system_modified?}
+
+      if jsonmodel
+        response[:uri] = jsonmodel.class.uri_for(obj[:id], params)
+        response[:warnings] = jsonmodel._warnings
+      end
+
+      json_response(response)
+    end
+
+
+    def created_response(*opts)
+      modified_response('Created', *opts)
+    end
+
+
+    def updated_response(*opts)
+      modified_response('Updated', *opts)
+    end
+
+
+    def suppressed_response(id, state)
+      json_response({:status => 'Suppressed', :id => id, :suppressed_state => state})
+    end
+
   end
 
 
@@ -77,7 +124,7 @@ module RESTHelpers
        ["page", NonNegativeInteger, "The page number to show"],
        ["modified_since",
         NonNegativeInteger,
-        "The page number to show",
+        "Only include results with a modified date after this timestamp",
         :default => 0]]
     end
 
@@ -152,7 +199,8 @@ module RESTHelpers
 
         Log.debug("Post-processed params: #{Log.filter_passwords(params).inspect}")
 
-        RequestContext.open(:repo_id => params[:repo_id]) do
+        RequestContext.open(:repo_id => params[:repo_id],
+                            :is_high_priority => high_priority_request?) do
           unless preconditions.all? { |precondition| self.instance_eval &precondition }
             raise AccessDeniedException.new("Access denied")
           end

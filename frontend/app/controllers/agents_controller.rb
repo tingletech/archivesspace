@@ -1,6 +1,6 @@
 class AgentsController < ApplicationController
-  skip_before_filter :unauthorised_access, :only => [:index, :show, :new, :edit, :create, :update, :list]
-  before_filter :user_needs_to_be_a_viewer, :only => [:index, :show, :list]
+  skip_before_filter :unauthorised_access, :only => [:index, :show, :new, :edit, :create, :update]
+  before_filter :user_needs_to_be_a_viewer, :only => [:index, :show]
   before_filter :user_needs_to_be_an_archivist, :only => [:new, :edit, :create, :update]
 
   before_filter :assign_types
@@ -33,6 +33,8 @@ class AgentsController < ApplicationController
                 },
                 :on_valid => ->(id){
                   return render :json => @agent.to_hash if inline?
+                  flash[:success] = "Agent Saved"
+                  return redirect_to :controller => :agents, :action => :new, :type => @agent_type if params.has_key?(:plus_one)
                   redirect_to :controller => :agents, :action => :show, :id => id, :type => @agent_type
                 })
   end
@@ -42,6 +44,11 @@ class AgentsController < ApplicationController
                 :model => JSONModel(@agent_type),
                 :obj => JSONModel(@agent_type).find(params[:id]),
                 :on_invalid => ->(){
+
+                  if @agent.names.empty?
+                    @agent.names = [@name_type.new._always_valid!]
+                  end
+
                   return render :action => :edit
                 },
                 :on_valid => ->(id){
@@ -49,13 +56,6 @@ class AgentsController < ApplicationController
                 })
   end
 
-  def list
-    if params[:q].blank?
-      render :json => JSONModel::all('/agents', :agent_type)
-    else
-      render :json => JSONModel::HTTP.get_json("/agents/by-name", params)
-    end
-  end
 
   private
 

@@ -107,7 +107,7 @@ describe 'Accession controller' do
                                           "accession_date" => "2012-05-03",
                                           "deaccessions" => [
                                             {
-                                              "whole_part" => false,
+                                              "scope" => "whole",
                                               "description" => "A description of this deaccession",
                                               "date" => {
                                                             "date_type" => "single",
@@ -117,7 +117,7 @@ describe 'Accession controller' do
                                             }
                                           ]).save
     JSONModel(:accession).find(acc).deaccessions.length.should eq(1)
-    JSONModel(:accession).find(acc).deaccessions[0]["whole_part"].should eq(false)
+    JSONModel(:accession).find(acc).deaccessions[0]["scope"].should eq("whole")
     JSONModel(:accession).find(acc).deaccessions[0]["date"]["begin"].should eq("2012-05-14")
   end
 
@@ -283,6 +283,51 @@ describe 'Accession controller' do
     test_accession.save
 
     JSONModel(:accession).all(:page => 1, :modified_since => ts)['results'].count.should eq(1)
+  end
+
+
+  it "can return a list of all related resources" do
+    resource = create(:json_resource)
+    accession = create(:json_accession)
+
+    resource.related_accessions = [{'ref' => accession.uri}]
+    resource.save
+
+    JSONModel(:resource).find(resource.id).related_accessions[0]['ref'].should eq(accession.uri)
+
+    # Now query the tree
+    tree = JSONModel(:accession_tree).find(nil, :accession_id => accession.id)
+    tree.title.should eq(accession.title)
+    tree.children.count.should eq(1)
+    tree.children[0]['title'].should eq(resource.title)
+    tree.children[0]['record_uri'].should eq(resource.uri)
+  end
+
+
+  it "Allows accessions to be created with an agent link" do
+
+    agent1 = create(:json_agent_person)
+    agent2 = create(:json_agent_person)
+
+    accession = Accession.create_from_json(build(:json_accession,
+                                                 :linked_agents => [
+                                                                    {
+                                                                      "role" => 'creator',
+                                                                      "ref" => agent1.uri
+                                                                    },
+                                                                    {
+                                                                      "role" => 'creator',
+                                                                      "ref" => agent2.uri
+                                                                    }
+                                                                   ]
+                                                 ),
+                                           :repo_id => $repo_id)
+
+    acc = JSONModel(:accession).find(accession.id)
+
+    acc.linked_agents.length.should eq(2)
+    acc.linked_agents[0]['ref'].should eq(agent1.uri)
+    acc.linked_agents[1]['ref'].should eq(agent2.uri)
   end
 
 end

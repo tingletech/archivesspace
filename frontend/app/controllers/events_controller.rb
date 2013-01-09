@@ -1,6 +1,6 @@
 class EventsController < ApplicationController
-  skip_before_filter :unauthorised_access, :only => [:index, :show, :list, :new, :edit, :create, :update, :listrecords]
-  before_filter :user_needs_to_be_a_viewer, :only => [:index, :show, :list]
+  skip_before_filter :unauthorised_access, :only => [:index, :show, :new, :edit, :create, :update]
+  before_filter :user_needs_to_be_a_viewer, :only => [:index, :show]
   before_filter :user_needs_to_be_an_archivist, :only => [:new, :edit, :create, :update]
 
   def index
@@ -28,6 +28,9 @@ class EventsController < ApplicationController
                   render :action => :new
                 },
                 :on_valid => ->(id){
+                  flash[:success] = "Event Saved"
+                  return redirect_to :controller => :events, :action => :new if params.has_key?(:plus_one)
+
                   redirect_to :controller => :events, :action => :index, :id => id
                 })
   end
@@ -41,14 +44,6 @@ class EventsController < ApplicationController
                   flash[:success] = "Event Saved"
                   redirect_to :controller => :events, :action => :index
                 })
-  end
-
-
-  def listrecords
-    render :json => [] if params[:q].blank?
-
-    render :json => JSONModel::HTTP.get_json(JSONModel(:event).uri_for('linkable-records/list'),
-                                             :q => params[:q])
   end
 
 end

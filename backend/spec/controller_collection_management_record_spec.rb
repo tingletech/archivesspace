@@ -3,17 +3,30 @@ require 'spec_helper'
 
 describe 'Collection Management Record controller' do
 
-  it "paginates record listings" do
-    10.times { create(:json_collection_management) }
+  it "can create a collection management record" do
+    digital_object = create(:json_digital_object)
 
-    page1_ids = JSONModel(:collection_management).all(:page => 1, :page_size => 5)['results'].map {|obj| obj.id}
-    page2_ids = JSONModel(:collection_management).all(:page => 2, :page_size => 5)['results'].map {|obj| obj.id}
+    cm = create(:json_collection_management, :linked_records => [{:ref => digital_object.uri, :other_junk => "dropped"}])
 
-    page1_ids.length.should eq(5)
-    page2_ids.length.should eq(5)
+    cm.should_not be(nil)
+  end
 
-    # No overlaps between the contents of our two pages
-    (page1_ids - page2_ids).length.should eq(5)
+
+  it "can update a collection management record" do
+    digital_object = create(:json_digital_object)
+    cm = create(:json_collection_management, :linked_records => [{:ref => digital_object.uri, :other_junk => "dropped"}])
+    cm.cataloged_note = "moo"
+    cm.save
+
+    JSONModel(:collection_management).find(cm.id).cataloged_note.should eq("moo")
+  end
+
+
+  it "returns a list of collection management records" do
+    3.times {
+      create(:json_collection_management)
+    }
+    JSONModel(:collection_management).all(:page => 1)["results"].size.should eq(3)
   end
 
 end

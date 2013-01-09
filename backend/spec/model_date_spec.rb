@@ -17,11 +17,14 @@ describe 'Date model' do
   end
 
 
-  it "Throws a validation error if no expression or begin date is set" do
+  it "Throws a validation error if date begin is missing (applies any date type)" do
 
-    opts = {:expression => nil, :begin => nil}
+    opts = {:begin => nil}
 
-    expect { create_date(opts) }.to raise_error(JSONModel::ValidationException)
+    5.times do
+      json = build(:json_date, opts)
+      expect { ASDate.create_from_json(json) }.to raise_error(JSONModel::ValidationException)
+    end
   end
 
 
@@ -147,4 +150,27 @@ describe 'Date model' do
     expect { create_date(opts) }.to raise_error(JSONModel::ValidationException)
   end
 
+
+  it "reports an error if no expression or date type is set" do
+
+    opts = {:date_type => nil,
+            :begin_time => nil,
+            :end_time => nil,
+            :expression => nil
+    }
+
+    expect { create_date(opts) }.to raise_error(JSONModel::ValidationException)
+  end
+
+
+  it "allows a date to be created with an expression but no date type" do
+
+    opts = {:date_type => nil,
+            :expression => "My Birthday"
+    }
+
+    date = create_date(opts)
+
+    ASDate[date[:id]].expression.should eq(opts[:expression])
+  end
 end

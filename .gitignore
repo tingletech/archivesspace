@@ -1,4 +1,5 @@
-build/*.jar
+*.jar
+*.war
 build/gems
 derby.log
 frontend/doc
@@ -7,8 +8,11 @@ doc
 config/config.rb
 *.swp
 .idea
-lib
+/lib
 coverage
 selenium/webdriver-profile*
 /archivesspace.jar
 build/target
+build/solr
+build/*.tmp
+backend/tests/ladle-server*

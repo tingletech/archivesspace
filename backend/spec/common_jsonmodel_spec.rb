@@ -224,7 +224,7 @@ describe 'JSON model' do
                                             "elt_1" => "thisisatest"
                                           })
     ts[:shorty] = "meep"
-    ts._exceptions[:errors].keys.should eq ([:unknown])
+    ts._exceptions[:errors].keys.should eq (['unknown'])
 
   end
 
@@ -306,6 +306,8 @@ describe 'JSON model' do
     begin
       JSONModel(:resource).from_hash({"title" => "New Resource",
                                        "id_0" => "",
+                                       "language" => "eng",
+                                       "level" => "collection",
                                        "notes" => [{"jsonmodel_type" => "note_singlepart",
                                                      "type" => "Abstract",
                                                      "label" => "moo",
@@ -329,8 +331,7 @@ describe 'JSON model' do
 
     rescue JSONModel::ValidationException => e
       e.errors.keys.sort.should eq(["notes/0/content",
-                                    "notes/1/subnotes/0/content",
-                                    "notes/1/subnotes/0/label"])
+                                    "notes/1/subnotes/0/content"])
     end
   end
 
@@ -347,6 +348,41 @@ describe 'JSON model' do
       e.errors.keys.sort.should eq(["terms/0/term"])
     end
 
+  end
+  
+  it "allows a schema to override the ifmissing key of its abstract parent" do
+    
+    # Resources don't allow language to be nil
+    begin
+      create(:json_resource, {:language => nil})      
+    rescue ValidationException => ve
+      ve.to_s.should match /^\#<:ValidationException: /
+    end
+    
+    # Abstract archival object don't allow language to be klingon
+    expect {
+      create(:json_resource, {:language => "klingon"}) 
+    }.to raise_error
+    
+    # Abstract archival objects do allow language to be nil
+    expect {
+      create(:json_archival_object, {:language => nil})
+    }.to_not raise_error
+  end
+
+
+  it "supports a magic 'other_unmapped' enum value which is always acceptable" do
+    term = build(:json_term)
+
+    term.term_type = 'garbage'
+    expect {
+      term.save
+    }.to raise_error(ValidationException)
+
+    term.term_type = 'other_unmapped'
+    expect {
+      term.save
+    }.to_not raise_error(ValidationException)
   end
 
 end

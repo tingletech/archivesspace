@@ -9,10 +9,12 @@ module Notes
     notes_blob = JSON(json.notes)
     json.notes = nil
 
-    super
+    obj = super
 
     ps = self.class.dataset.where(:id => self.id).prepare(:update, :update_notes, :notes => :$notes)
     ps.call(:notes => notes_blob.to_sequel_blob)
+
+    obj
   end
 
 
@@ -32,7 +34,7 @@ module Notes
     end
 
 
-    def sequel_to_jsonmodel(obj, type, opts = {})
+    def sequel_to_jsonmodel(obj, opts = {})
       notes = JSON.parse(DB.deblob(obj.notes) || "[]")
       obj[:notes] = nil
       json = super

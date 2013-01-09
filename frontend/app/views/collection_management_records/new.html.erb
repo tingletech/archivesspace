@@ -1,4 +1,4 @@
-<%= render :partial => "shared/breadcrumb", :locals => {:trail => ["New Collection Management Record"]} %>
+<%= setup_context(:object => @collection_management, :controller => :collection_management_records) %>
 
 <%= form_for @collection_management, :as => "collection_management", :url => {:action => :create}, :html => {:class => 'form-horizontal'} do |f| %>
   <%= form_context :collection_management, @collection_management do |form| %>
@@ -7,12 +7,15 @@
         <%= render :partial => "sidebar" %>
       </div>
       <div class="span9 record-pane">
-        <h2><%= "New Collection Management Record" %>  <span class="label label-info">Collection Management Record</span></h2>
+        <h2><%= I18n.t("actions.new_prefix") %> <%= I18n.t("collection_management_record._html.singular") %>  <span class="label label-info"><%= I18n.t("collection_management_record._html.singular") %></span></h2>
 
         <%= render :partial => "collection_management_records/form", :locals => {:form => form} %>
         <div class="form-actions">
-          <button type="submit" class="btn btn-primary">Save Collection Management Record</button>
-          <%= link_to "Cancel", :back, :class => "btn btn-cancel" %>
+          <div class="btn-group">
+            <button type="submit" class="btn btn-primary"><%= I18n.t("actions.save_prefix") %> <%= I18n.t("collection_management_record._html.singular") %></button>
+            <button type="submit" id="createPlusOne" name="plus_one" class="btn btn-primary"><%= I18n.t("actions.save_plus_one") %></button>
+          </div>
+          <%= link_to I18n.t("actions.cancel"), :back, :class => "btn btn-cancel" %>
         </div>
       </div>
     </div>

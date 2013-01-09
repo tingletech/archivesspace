@@ -1,8 +1,8 @@
 class User < Sequel::Model(:user)
   include ASModel
-  plugin :validation_helpers
 
   set_model_scope :global
+  corresponds_to JSONModel(:user)
 
 
   def self.ADMIN_USERNAME
@@ -12,6 +12,11 @@ class User < Sequel::Model(:user)
 
   def self.SEARCH_USERNAME
     AppConfig[:search_username]
+  end
+
+  
+  def self.unlisted_user_ids
+    [2]
   end
 
 
@@ -45,7 +50,7 @@ class User < Sequel::Model(:user)
                                  :permission_id => permission.id,
                                  :repo_id => [self.class.active_repository, global_repo.id].reject(&:nil?)).
                           count) >= 1)
-  end
+  end 
 
 
   def permissions

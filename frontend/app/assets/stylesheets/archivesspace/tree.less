@@ -17,6 +17,7 @@
   border-top: 1px solid #EEE;
   border-bottom: 1px solid #FFF;
   overflow: visible;
+  width: auto !important;
 
   > .archives-tree-title {
     background-color: #eee;
@@ -98,7 +99,9 @@
       overflow: auto;
     }
   }
-
+  .ui-resizable-handle {
+    z-index: auto !important;
+  }
   .ui-resizable-handle.ui-resizable-s {
     width: 100%;
     position: absolute;

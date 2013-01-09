@@ -1,3 +1,4 @@
+//= require jquery.sortable
 //= require jquery.tokeninput
 
 $(function() {
@@ -15,28 +16,36 @@ $(function() {
       var config = {
         url: $this.data("url"),
         format_template: $this.data("format_template"),
+        format_template_id: $this.data("format_template_id"),
         format_property: $this.data("format_property"),
-        controller: $this.data("controller"),
         path: $this.data("path"),
         name: $this.data("name"),
         multiplicity: $this.data("multiplicity") || "many",
         label: $this.data("label"),
         label_plural: $this.data("label_plural"),
-        modal_id: "linkerModalFor_"+$this.data("class")
+        modal_id: "linkerModalFor_"+$this.data("class"),
+        sortable: $this.data("sortable") === true,
+        types: $this.data("types")
       };
 
       if (config.format_template && config.format_template.substring(0,2) != "${") {
         config.format_template = "${" + config.format_template + "}";
       }
 
-      var renderItemsInModal = function() {
+      var renderItemsInModal = function(page) {
+        page = page || 1;
         var currentlySelectedIds = $this.tokenInput("get").map(function(obj) {return obj.id;});
         $.ajax({
           url: config.url,
+          data: {
+            page: page,
+            type: config.types,
+            q: "*"
+          },
           type: "GET",
           dataType: "json",
           success: function(json) {
-            $("#"+config.modal_id).find(".linker-list").html(AS.renderTemplate("linker_browse_template", {items: json, config: config, selected: currentlySelectedIds}));
+            $("#"+config.modal_id).find(".linker-list").html(AS.renderTemplate("linker_browse_template", {search_data: json, config: config, selected: currentlySelectedIds}));
           }
         });
       };
@@ -45,6 +54,8 @@ $(function() {
       var formattedNameForJSON = function(json) {
         if (config.format_template) {
           return AS.quickTemplate(config.format_template, json);
+        } else if (config.format_template_id) {
+          return $(AS.renderTemplate(config.format_template_id, json)).html();
         } else if (config.format_property) {
           return json[config.format_property];
         }
@@ -115,7 +126,7 @@ $(function() {
         $(".linker-list :input:checked", "#"+config.modal_id).each(function() {
           var item = $(this).data("object");
           $this.tokenInput("add", {
-            id: item.uri,
+            id: $(this).val(),
             name: formattedNameForJSON(item),
             json: item
           });
@@ -129,19 +140,26 @@ $(function() {
         AS.openCustomModal(config.modal_id, "Browse "+ config.label_plural, AS.renderTemplate("linker_browsemodal_template",config));
         renderItemsInModal();
         $("#"+config.modal_id).on("click","#addSelectedButton", addSelected);
+        $("#"+config.modal_id).on("click", ".linker-list .pagination .navigation a", function() {
+          renderItemsInModal($(this).attr("rel"));
+        });
       };
 
 
-      var formatResults = function(results) {
+      var formatResults = function(searchData) {
         var formattedResults = [];
         var currentlySelectedIds = $this.tokenInput("get").map(function(obj) {return obj.id;});
-        $.each(results, function(index, obj) {
+        $.each(searchData.results, function(index, obj) {
           // only allow selection of unselected items
           if ($.inArray(obj.uri, currentlySelectedIds) === -1) {
+            var json = obj;
+            if (obj.hasOwnProperty("json")) {
+              json = JSON.parse(obj.json);
+            }
             formattedResults.push({
-              name: formattedNameForJSON(obj),
-              id: obj.uri,
-              json: obj
+              name: formattedNameForJSON(json),
+              id: obj.id,
+              json: json
             });
           }
         });
@@ -167,6 +185,16 @@ $(function() {
         $this.tokenInput("clear");
       };
 
+
+      var enableSorting = function() {
+        $(".token-input-list", $linkerWrapper).sortable("destroy").sortable({
+          items: 'li.token-input-token'
+        });
+        $(".token-input-list", $linkerWrapper).off("sortupdate").on("sortupdate", function() {
+          $this.parents("form:first").triggerHandler("form-changed");
+        });
+      };
+
       var tokensForPrepopulation = function() {
         if ($this.data("multiplicity") === "one") {
           if ($.isEmptyObject($this.data("selected"))) {
@@ -178,7 +206,7 @@ $(function() {
               json: $this.data("selected")
           }];
         } else {
-          if ($this.data("selected").length === 0) {
+          if (!$this.data("selected") || $this.data("selected").length === 0) {
             return [];
           }
 
@@ -199,6 +227,7 @@ $(function() {
           preventDuplicates: true,
           allowFreeTagging: false,
           tokenLimit: (config.multiplicity==="one"? 1 :null),
+          caching: false,
           onCachedResult: formatResults,
           onResult: formatResults,
           tokenFormatter: function(item) {
@@ -216,11 +245,30 @@ $(function() {
             $this.parents("form:first").triggerHandler("form-changed");
           },
           onAdd:  function(item) {
+            enableSorting();
             $this.parents("form:first").triggerHandler("form-changed");
+            $(document).triggerHandler("init.popovers");
+          },
+          formatQueryParam: function(q, ajax_params) {
+            if ($this.tokenInput("get").length) {
+              ajax_params.data["exclude[]"] = $this.tokenInput("get").map(function(o) {return o.id});
+            }
+            if (config.types && config.types.length) {
+              ajax_params.data["type"] = config.types;
+            }
+
+            return (q+"*").toLowerCase();
           }
         });
 
         $this.parent().addClass("multiplicity-"+config.multiplicity);
+
+        if (config.sortable && config.multiplicity == "many") {
+          enableSorting();
+          $linkerWrapper.addClass("sortable");
+        }
+
+        $(document).triggerHandler("init.popovers");
 
         addEventBindings();
       };

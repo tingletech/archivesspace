@@ -19,6 +19,22 @@ class ArchivesSpaceService < Sinatra::Base
   include CrudHelpers
   include ImportHelpers
 
+  helpers do
+    include RESTHelpers::ResponseHelpers
+  end
+
+
+  @loaded_hooks = []
+  @archivesspace_loaded = false
+
+  def self.loaded_hook(&block)
+    if @archivesspace_loaded
+      block.call
+    else
+      @loaded_hooks << block
+    end
+  end
+
 
   configure :development do |config|
     require 'sinatra/reloader'
@@ -34,7 +50,7 @@ class ArchivesSpaceService < Sinatra::Base
 
   configure do
 
-    JSONModel::init
+    JSONModel::init(:allow_other_unmapped => AppConfig[:allow_other_unmapped])
 
     require_relative "model/db"
 
@@ -103,6 +119,11 @@ class ArchivesSpaceService < Sinatra::Base
           end
         end
       end
+
+      @loaded_hooks.each do |hook|
+        hook.call
+      end
+      @archivesspace_loaded = true
 
     else
       # Just load the setup controller
@@ -202,45 +223,8 @@ class ArchivesSpaceService < Sinatra::Base
   end
 
 
-  helpers do
-
-    # Redispatch the current request to a different route handler.
-    def redirect_internal(url)
-      call! env.merge("PATH_INFO" => url)
-    end
-
-
-    def json_response(obj, status = 200)
-      [status, {"Content-Type" => "application/json"}, [obj.to_json(:max_nesting => false) + "\n"]]
-    end
-
-
-    def modified_response(type, obj, jsonmodel = nil)
-      response = {:status => type, :id => obj[:id], :lock_version => obj[:lock_version], :stale => obj.stale?}
-
-      if jsonmodel
-        response[:uri] = jsonmodel.class.uri_for(obj[:id], params)
-        response[:warnings] = jsonmodel._warnings
-      end
-
-      json_response(response)
-    end
-
-
-    def created_response(*opts)
-      modified_response('Created', *opts)
-    end
-
-
-    def updated_response(*opts)
-      modified_response('Updated', *opts)
-    end
-
-
-    def suppressed_response(id, state)
-      json_response({:status => 'Suppressed', :id => id, :suppressed_state => state})
-    end
-
+  def high_priority_request?
+    env["HTTP_X_ARCHIVESSPACE_PRIORITY"] && (env["HTTP_X_ARCHIVESSPACE_PRIORITY"].downcase == "high")
   end
 
 

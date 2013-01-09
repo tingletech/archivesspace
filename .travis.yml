@@ -13,8 +13,8 @@ jdk:
   - oraclejdk7
 
 branches:
-  except:
-    - gh-pages
+  only:
+    - master
 
 script:
   - build/run bootstrap

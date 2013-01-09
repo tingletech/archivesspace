@@ -1,7 +1,15 @@
 Sequel.extension :inflector
 
+module MigrationUtils
+  def self.shorten_table(name)
+    name.to_s.split("_").map {|s| s[0...3]}.join("_")
+  end
+end
+
+
 Sequel.migration do
   up do
+
     create_table(:session) do
       primary_key :id
       String :session_id, :unique => true, :null => false
@@ -34,7 +42,7 @@ Sequel.migration do
 
       String :username, :null => false, :unique => true
       String :name, :null => false
-      String :source, :null => false
+      String :source, :null => true
 
       DateTime :create_time, :null => false
       DateTime :last_modified, :null => false
@@ -134,7 +142,7 @@ Sequel.migration do
       Integer :repo_id, :null => false
       Integer :suppressed, :default => 0, :null => false
 
-      String :identifier, :null => false, :unique => true
+      String :identifier, :null => false
 
       String :title, :null => true
       TextField :content_description, :null => true
@@ -148,6 +156,7 @@ Sequel.migration do
 
     alter_table(:accession) do
       add_foreign_key([:repo_id], :repository, :key => :id)
+      add_unique_constraint([:repo_id, :identifier], :name => "accession_unique_identifier")
       add_index(:suppressed)
     end
 
@@ -157,9 +166,38 @@ Sequel.migration do
       Integer :lock_version, :default => 0, :null => false
 
       Integer :repo_id, :null => false
+      Integer :accession_id, :null => true
       String :title, :null => false
 
       String :identifier
+
+      String :language, :null => false
+
+      String :level, :null => false
+      String :other_level
+
+      Integer :publish
+      Integer :restrictions
+
+      TextField :repository_processing_note
+      TextField :container_summary
+
+      String :ead_id
+      String :ead_location
+
+      String :finding_aid_title
+      String :finding_aid_filing_title
+      String :finding_aid_date
+      String :finding_aid_author
+      String :finding_aid_description_rules
+      String :finding_aid_language
+      String :finding_aid_sponsor
+      TextField :finding_aid_edition_statement
+      TextField :finding_aid_series_statement
+      String :finding_aid_revision_date
+      TextField :finding_aid_revision_description
+      String :finding_aid_status
+      TextField :finding_aid_note
 
       BlobField :notes, :null => true
 
@@ -169,7 +207,9 @@ Sequel.migration do
 
     alter_table(:resource) do
       add_foreign_key([:repo_id], :repository, :key => :id)
+      add_foreign_key([:accession_id], :accession, :key => :id)
       add_unique_constraint([:repo_id, :identifier], :name => "resource_unique_identifier")
+      add_unique_constraint([:repo_id, :ead_id], :name => "resource_unique_ead_id")
     end
 
 
@@ -189,7 +229,13 @@ Sequel.migration do
       String :component_id, :null => true
 
       TextField :title, :null => true
-      String :level, :null => true
+
+      String :level, :null => false
+      String :other_level
+
+      String :language, :null => true
+
+      BlobField :notes, :null => true
 
       DateTime :create_time, :null => false
       DateTime :last_modified, :null => false
@@ -338,6 +384,7 @@ Sequel.migration do
       Integer :vocab_id, :null => false
 
       String :terms_sha1, :unique => true
+      String :ref_id, :unique => true
 
       DateTime :create_time, :null => false
       DateTime :last_modified, :null => false
@@ -367,16 +414,27 @@ Sequel.migration do
       add_index([:vocab_id, :term, :term_type], :unique => true)
     end
 
+    # Create subject join tables
+    [:term, :archival_object, :resource, :accession, :digital_object, :digital_object_component].each do |linked_table|
+      table = "subject_#{linked_table}".intern
 
-    create_join_table({:subject_id => :subject, :term_id => :term}, :name => "subject_term")
-    create_join_table({:subject_id => :subject, :archival_object_id => :archival_object}, :name => "subject_archival_object")
-    create_join_table({:subject_id => :subject, :resource_id => :resource}, :name => "subject_resource")
-    create_join_table({:subject_id => :subject, :accession_id => :accession}, :name => "subject_accession")
-    create_join_table({:subject_id => :subject, :digital_object_id => :digital_object}, :name => "subject_digital_object")
-    create_join_table({:subject_id => :subject, :digital_object_component_id => :digital_object_component},
-                      :name => "subject_digital_object_component",
-                      :index_options => { :name => 's_d_o_c_s_id_d_o_c_id_index'})
+      create_table(table) do
+        primary_key :id
 
+        Integer :subject_id, :null => false
+        Integer "#{linked_table}_id".intern, :null => false
+      end
+
+      alter_table(table) do
+        add_foreign_key([:subject_id], :subject, :key => :id)
+        add_foreign_key(["#{linked_table}_id".intern], linked_table.intern, :key => :id)
+
+        abbrev = MigrationUtils.shorten_table(linked_table)
+
+        add_index([:subject_id, "#{linked_table}_id".intern],
+                  :name => "subject_#{abbrev}")
+      end
+    end
 
     create_table(:agent_person) do
       primary_key :id
@@ -440,7 +498,7 @@ Sequel.migration do
       Integer :agent_person_id, :null => false
 
       String :primary_name, :null => false
-      String :direct_order, :null => false
+      String :name_order, :null => false
 
       TextField :title, :null => true
       TextField :prefix, :null => true
@@ -577,7 +635,7 @@ Sequel.migration do
       Integer :accession_id, :null => true
       Integer :resource_id, :null => true
 
-      Integer :whole_part, :default => 1
+      String :scope, :null => false
       String :description, :null => false
 
       String :reason
@@ -642,7 +700,7 @@ Sequel.migration do
       Integer :digital_object_id, :null => true
       Integer :digital_object_component_id, :null => true
 
-      String :date_type, :null => false
+      String :date_type, :null => true
       String :label, :null => false
 
       String :uncertain, :null => true
@@ -690,139 +748,6 @@ Sequel.migration do
     end
 
 
-    event_links = [:agent_person, :agent_corporate_entity,
-                   :agent_family, :agent_software,
-                   :archival_object, :resource, :accession]
-
-    event_links.each do |linked_table|
-      table = "event_#{linked_table}".intern
-
-      create_table(table) do
-        primary_key :id
-
-        Integer :event_id, :null => false
-        Integer "#{linked_table}_id".intern, :null => false
-        String :role, :null => false
-      end
-
-
-      alter_table(table) do
-        add_foreign_key([:event_id], :event, :key => :id)
-        add_foreign_key(["#{linked_table}_id".intern], linked_table.intern, :key => :id)
-      end
-    end
-
-
-    accession_links = [:agent_person, :agent_corporate_entity,
-                   :agent_family, :agent_software]
-
-    accession_links.each do |linked_table|
-      table = "accession_#{linked_table}".intern
-
-      create_table(table) do
-        primary_key :id
-
-        Integer :accession_id, :null => false
-        Integer "#{linked_table}_id".intern, :null => false
-        String :role, :null => false
-      end
-
-
-      alter_table(table) do
-        add_foreign_key([:accession_id], :accession, :key => :id)
-        add_foreign_key(["#{linked_table}_id".intern], linked_table.intern, :key => :id)
-      end
-    end
-
-
-    resource_links = [:agent_person, :agent_corporate_entity,
-                       :agent_family, :agent_software]
-
-    resource_links.each do |linked_table|
-      table = "resource_#{linked_table}".intern
-
-      create_table(table) do
-        primary_key :id
-
-        Integer :resource_id, :null => false
-        Integer "#{linked_table}_id".intern, :null => false
-        String :role, :null => false
-      end
-
-
-      alter_table(table) do
-        add_foreign_key([:resource_id], :resource, :key => :id)
-        add_foreign_key(["#{linked_table}_id".intern], linked_table.intern, :key => :id)
-      end
-    end
-
-
-    archival_object_links = [:agent_person, :agent_corporate_entity,
-                      :agent_family, :agent_software]
-
-    archival_object_links.each do |linked_table|
-      table = "archival_object_#{linked_table}".intern
-
-      create_table(table) do
-        primary_key :id
-
-        Integer :archival_object_id, :null => false
-        Integer "#{linked_table}_id".intern, :null => false
-        String :role, :null => false
-      end
-
-
-      alter_table(table) do
-        add_foreign_key([:archival_object_id], :archival_object, :key => :id)
-        add_foreign_key(["#{linked_table}_id".intern], linked_table.intern, :key => :id)
-      end
-    end
-
-
-    digital_object_links = [:agent_person, :agent_corporate_entity,
-                             :agent_family, :agent_software]
-
-    digital_object_links.each do |linked_table|
-      table = "digital_object_#{linked_table}".intern
-
-      create_table(table) do
-        primary_key :id
-
-        Integer :digital_object_id, :null => false
-        Integer "#{linked_table}_id".intern, :null => false
-        String :role, :null => false
-      end
-
-
-      alter_table(table) do
-        add_foreign_key([:digital_object_id], :digital_object, :key => :id)
-        add_foreign_key(["#{linked_table}_id".intern], linked_table.intern, :key => :id)
-      end
-    end
-
-
-    digital_object_component_links = [:agent_person, :agent_corporate_entity,
-                            :agent_family, :agent_software]
-
-    digital_object_component_links.each do |linked_table|
-      table = "digital_object_component_#{linked_table}".intern
-
-      create_table(table) do
-        primary_key :id
-
-        Integer :digital_object_component_id, :null => false
-        Integer "#{linked_table}_id".intern, :null => false
-        String :role, :null => false
-      end
-
-
-      alter_table(table) do
-        add_foreign_key([:digital_object_component_id], :digital_object_component, :key => :id)
-        add_foreign_key(["#{linked_table}_id".intern], linked_table.intern, :key => :id)
-      end
-    end
-
-
     create_table(:rights_statement) do
       primary_key :id
 
@@ -831,6 +756,8 @@ Sequel.migration do
       Integer :accession_id, :null => true
       Integer :archival_object_id, :null => true
       Integer :resource_id, :null => true
+      Integer :digital_object_id, :null => true
+      Integer :digital_object_component_id, :null => true
 
       Integer :repo_id, :null => false
 
@@ -850,8 +777,8 @@ Sequel.migration do
       String :jurisdiction, :null => true
       String :type_note, :null => true
 
-      String :permission, :null => true
-      String :restrictions, :null => true
+      TextField :permissions, :null => true
+      TextField :restrictions, :null => true
       DateTime :restriction_start_date, :null => true
       DateTime :restriction_end_date, :null => true
 
@@ -866,6 +793,8 @@ Sequel.migration do
       add_foreign_key([:accession_id], :accession, :key => :id)
       add_foreign_key([:archival_object_id], :archival_object, :key => :id)
       add_foreign_key([:resource_id], :resource, :key => :id)
+      add_foreign_key([:digital_object_id], :digital_object, :key => :id)
+      add_foreign_key([:digital_object_component_id], :digital_object_component, :key => :id)
 
       add_foreign_key([:repo_id], :repository, :key => :id)
       add_unique_constraint([:repo_id, :identifier], :name => "rights_unique_identifier")
@@ -879,6 +808,8 @@ Sequel.migration do
 
       String :title, :null => false
       String :location, :null => false
+
+      Integer :publish
 
       DateTime :create_time, :null => false
       DateTime :last_modified, :null => false
@@ -896,12 +827,18 @@ Sequel.migration do
                                              :digital_object_component]
 
     records_supporting_external_documents.each do |record|
-      create_join_table({
-                          "#{record}_id".intern => record,
-                          :external_document_id => :external_document
-                        },
-                        :name => "#{record}_external_document",
-                        :index_options => {:name => "ed_#{record}_idx"})
+      table = "#{record}_external_document".intern
+
+      create_table(table) do
+        primary_key :id
+        Integer "#{record}_id".intern
+        Integer :external_document_id
+      end
+
+      alter_table(table) do
+        add_foreign_key(["#{record}_id".intern], record, :key => :id)
+        add_foreign_key([:external_document_id], :external_document, :key => :id)
+      end
     end
 
 
@@ -980,23 +917,89 @@ Sequel.migration do
       DateTime :last_modified, :null => false
     end
 
-    create_join_table({:collection_management_id => :collection_management,
-                        :accession_id => :accession},
-                      :name => "collection_management_accession",
-                      :index_options => { :name => 'c_m_acc_index'})
-    create_join_table({:collection_management_id => :collection_management,
-                        :resource_id => :resource},
-                      :name => "collection_management_resource",
-                      :index_options => { :name => 'c_m_res_index'})
-    create_join_table({:collection_management_id => :collection_management,
-                        :digital_object_id => :digital_object},
-                      :name => "collection_management_digital_object",
-                      :index_options => { :name => 'c_m_do_index'})
-
 
     create_table(:sequence) do
       String :sequence_name, :primary_key => true
       Integer :value, :null => false
+    end
+
+
+
+    # Relationship tables
+    [:accession, :archival_object, :digital_object, :digital_object_component, :event, :resource].each do |record|
+      [:agent_person, :agent_software, :agent_family, :agent_corporate_entity].each do |agent|
+        table = [MigrationUtils.shorten_table(record),
+                 MigrationUtils.shorten_table(agent)].sort.join("_linked_agents_").intern
+
+        create_table(table) do
+          primary_key :id
+          Integer "#{record}_id".intern
+          Integer "#{agent}_id".intern
+          Integer :aspace_relationship_position
+          String :role
+        end
+
+        alter_table(table) do
+          add_foreign_key(["#{record}_id".intern], record, :key => :id)
+          add_foreign_key(["#{agent}_id".intern], agent, :key => :id)
+        end
+      end
+    end
+
+    # Event relationships
+    [:accession, :resource, :archival_object].each do |record|
+      table = [MigrationUtils.shorten_table("event"),
+               MigrationUtils.shorten_table(record)].sort.join("_link_").intern
+
+      create_table(table) do
+        primary_key :id
+        Integer "#{record}_id".intern
+        Integer :event_id
+        Integer :aspace_relationship_position
+        String :role
+      end
+
+      alter_table(table) do
+        add_foreign_key(["#{record}_id".intern], record, :key => :id)
+        add_foreign_key([:event_id], :event, :key => :id)
+      end
+    end
+
+
+    # Collection management relationships
+    [:accession, :resource, :digital_object].each do |record|
+      table = [MigrationUtils.shorten_table("collection_management"),
+               MigrationUtils.shorten_table(record)].sort.join("_link_").intern
+
+
+      create_table(table) do
+        primary_key :id
+        Integer "#{record}_id".intern
+        Integer :collection_management_id
+        Integer :aspace_relationship_position
+      end
+
+      alter_table(table) do
+        add_foreign_key(["#{record}_id".intern], record, :key => :id)
+        add_foreign_key([:collection_management_id], :collection_management, :key => :id)
+      end
+    end
+
+
+    # Accession/resource "spawned from" relationships
+    table = [MigrationUtils.shorten_table("accession"),
+             MigrationUtils.shorten_table("resource")].sort.join("_spawned_").intern
+
+    create_table(table) do
+      primary_key :id
+      Integer :accession_id
+      Integer :resource_id
+      Integer :aspace_relationship_position
+    end
+
+    alter_table(table) do
+      add_foreign_key([:accession_id], :accession, :key => :id)
+      add_foreign_key([:resource_id], :resource, :key => :id)
     end
 
   end
@@ -1013,11 +1016,11 @@ Sequel.migration do
      :name_corporate_entity, :name_software, :agent_corporate_entity, :agent_software,
      :session, :auth_db, :group_user, :group_permission, :permission, :user, :group, :accession,
      :date, :event, :archival_object, :vocabulary, :extent, :resource, :repository,
-     :accession_external_document, :archival_object_external_document,
-     :external_document_resource, :external_document_subject, :digital_object,
-     :agent_people_external_document, :agent_family_external_document,
-     :agent_corporate_entity_external_document,
-     :agent_software_external_document, :collection_management].each do |table|
+     :digital_object, :collection_management,
+     :accession_external_document, :archival_object_external_document, :resource_external_document, :subject_external_document,
+     :agent_person_external_document, :agent_family_external_document, :agent_corporate_entity_external_document,
+     :agent_software_external_document, :rights_statement_external_document, :digital_object_external_document, :digital_object_component_external_document
+     ].each do |table|
       puts "Dropping #{table}"
       drop_table?(table)
     end

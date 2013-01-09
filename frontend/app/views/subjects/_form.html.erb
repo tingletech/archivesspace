@@ -1,6 +1,6 @@
 <%= render :partial => "shared/form_messages", :locals => {:object => @subject, :form => form} %>
 
-<% define_template "term" do |form| %>
+<% define_template "term", jsonmodel_definition(:term) do |form| %>
   <div class="row-fluid inputs-fill-it-up term-row">
     <div class="span5">
       <div class="control-group">
@@ -9,12 +9,12 @@
     </div>
     <div class="span5">
       <div class="control-group">
-        <%= form.select "term_type", form.jsonmodel_options_for(:term, "term_type") %>
+        <%= form.select "term_type", form.possible_options_for("term_type") %>
       </div>
     </div>
     <div class="span2">
       <div class="btn-group">
-        <button type="button" class="btn btn-small add-term-btn">Add</button>
+        <button type="button" class="btn btn-small add-term-btn"><%= I18n.t("actions.add") %></button>
         <button type="button" class="btn btn-small remove-term-btn"><span class="icon-remove-sign"></span></button>
       </div>
       <%= form.hidden_input "vocabulary", current_vocabulary['uri'] %>
@@ -29,24 +29,33 @@
 <fieldset>
    <%= form.hidden_input "vocabulary", current_vocabulary['uri'] %>
 
-   <section id="terms">
-     <h3>Terms</h3>
-     <div class="row-fluid">
-        <div class="span5">Term</div>
-        <div class="span5">Type</div>
-        <div class="span2"></div>
-     </div>
-     <div class="terms-container">
-       <%= form.list_for(form["terms"], "terms[]") do |term| %>
-         <% form.emit_template("term") %>
-       <% end %>
-     </div>
+   <section id="basic_information">
+     <h3><%= I18n.t("subject._html.section.basic_information") %></h3>
+     <%= form.label_and_textfield "ref_id" %>
+   </section>
 
-     <hr/>
+   <section id="terms" class="subrecord-form">
+     <h3><%= I18n.t("subject.terms") %></h3>
+     <div class="subrecord-form-container">
+       <div class="subrecord-form-fields">
+         <div class="row-fluid">
+            <div class="span5"><%= I18n.t("term.term") %></div>
+            <div class="span5"><%= I18n.t("term.term_type") %></div>
+            <div class="span2"></div>
+         </div>
+         <div class="terms-container">
+           <%= form.list_for(form["terms"], "terms[]") do |term| %>
+             <% form.emit_template("term") %>
+           <% end %>
+         </div>
 
-     <div class="well">
-        <div class="subject-preview"><em>Subject Preview</em></div>
-     </div>
+         <hr/>
+
+         <div class="well">
+           <div class="subject-preview"><em><%= I18n.t("subject.subject_preview") %></em></div>
+         </div>
+        </div>
+      </div>
      
    </section>
 

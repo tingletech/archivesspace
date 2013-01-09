@@ -1,0 +1,17 @@
+<%= setup_context :object => @user %>
+
+<div class="row-fluid">
+   <div class="span12">
+      <h2><%= I18n.t("user._html.section.edit_account") %></h2>
+     <%= form_for @user, :as => "createuser", :url => {:action => :update}, :html => {:class => 'form-horizontal'} do |f| %>
+       <%= form_context :user, @user.to_hash(true) do |form| %>
+         <%= render :partial => "users/form", :locals => {:form => form} %>
+
+         <div class="form-actions">
+           <button id="create_account" type="submit" class="btn btn-primary"><%= I18n.t("user._html.section.edit_account_submit") %></button>
+           <%= link_to I18n.t("actions.cancel"), {:controller => :welcome}, :class => "btn btn-cancel" %>
+         </div>
+       <% end %>
+     <% end %>
+   </div>
+</div>

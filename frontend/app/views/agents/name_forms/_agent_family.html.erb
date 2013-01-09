@@ -1,8 +1,8 @@
-<% define_template "agent_family_name" do |form| %>
+<% define_template "name_family", jsonmodel_definition(:name_family) do |form| %>
   <div class="subrecord-form-fields">
     <%= form.label_and_textfield "authority_id" %>
-    <%= form.label_and_select "source", JSONModel(:name_family).schema['properties']['source']['enum'], :nodefault => true %>
-    <%= form.label_and_select "rules", JSONModel(:name_family).schema['properties']['rules']['enum'], :nodefault => true %>
+    <%= form.label_and_select "source", form.possible_options_for('source', true) %>
+    <%= form.label_and_select "rules", form.possible_options_for('rules', true) %>
     <hr/>
     <%= form.label_and_textfield "prefix" %>
     <%= form.label_and_textfield "family_name" %>
@@ -13,12 +13,12 @@
       <%= form.label("sort_name") %>
       <div class="controls">
         <%= form.textfield "sort_name", form["sort_name"], :readonly => "readonly" %>
-        <label><%= form.checkbox "automatic", {:class => "sort-name-generation-type"}, true, true %> <small>Automatically generate?</small></label>
+        <label><%= form.checkbox "automatic", {:class => "sort-name-generation-type"}, true, true %> <small><%= I18n.t("agent_name.sort_name_auto_generate") %></small></label>
       </div>
     </div>
     <hr/>
     <%= form.label_and_textfield "description_type" %>
-    <%= form.label_and_textfield "description_note" %>
+    <%= form.label_and_textarea "description_note" %>
     <%= form.label_and_textfield "description_citation" %>
   </div>
 <% end %>

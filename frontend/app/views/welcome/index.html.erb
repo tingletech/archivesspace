@@ -1,3 +1,5 @@
+<%= setup_context :title => "Home", :suppress_breadcrumb => true %>
+
 <div class="row-fluid">
    <% if flash[:error] %>
       <div class="alert alert-error">
@@ -6,7 +8,7 @@
    <% end %>
 
    <div class="span12">
-      <h1>Welcome to ArchivesSpace</h1>
-      <p>This is where something will go.</p>
+      <h1><%= I18n.t "welcome.heading" %></h1>
+      <p><%= I18n.t "welcome.message" %></p>
    </div>
 </div>

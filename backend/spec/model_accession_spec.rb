@@ -30,6 +30,37 @@ describe 'Accession model' do
   end
 
 
+  it "Doesn't enforce ID uniqueness between repositories" do
+    repo1 = make_test_repo("REPO1")
+    repo2 = make_test_repo("REPO2")
+
+    expect {
+      [repo1, repo2].each do |repo_id|
+        Accession.create_from_json(build(:json_accession,
+                                         {:id_0 => "1234",
+                                          :id_1 => "5678",
+                                          :id_2 => "9876",
+                                          :id_3 => "5432"
+                                          }),
+                                   :repo_id => repo_id)
+      end
+    }.to_not raise_error
+  end
+
+
+  it "Enforces ID max length" do
+    lambda {
+      2.times do
+        Accession.create_from_json(build(:json_accession,
+                                         {
+                                           :id_0 => "x" * 51
+                                         }),
+                                   :repo_id => $repo_id)
+      end
+    }.should raise_error(Sequel::ValidationFailed)
+  end
+
+
   it "Allows long condition descriptions" do
     long_string = "x" * 1024
     
@@ -124,7 +155,7 @@ describe 'Accession model' do
     accession = Accession.create_from_json(build(:json_accession,
                                                  :deaccessions => [
                                                     {
-                                                      "whole_part" => false,
+                                                      "scope" => "whole",
                                                       "description" => "A description of this deaccession",
                                                       "date" => build(:json_date,
                                                                       :begin => '2012-05-14').to_hash,
@@ -135,7 +166,7 @@ describe 'Accession model' do
 
 
     Accession[accession[:id]].deaccession.length.should eq(1)
-    Accession[accession[:id]].deaccession[0].whole_part.should eq(0)
+    Accession[accession[:id]].deaccession[0].scope.should eq("whole")
     Accession[accession[:id]].deaccession[0].date.begin.should eq("2012-05-14")
   end
 

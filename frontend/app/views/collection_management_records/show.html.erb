@@ -1,4 +1,12 @@
-<%= render :partial => "shared/breadcrumb", :locals => {:trail => [link_to("Browse Collection Management Records", :controller => :collection_management_records, :action => :index), @collection_management.id]} %>
+<%
+   pr = JSONModel.parse_reference(@collection_management.linked_records[0]['ref'])
+   many_lr = @collection_management.linked_records.length > 1 ? true : false
+   rt = I18n.t("#{pr[:type]}._html.#{many_lr ? 'plural' : 'singular'}")
+   title = "#{rt}: #{JSONModel(pr[:type].intern).find(pr[:id]).title}#{many_lr ? ' ...' : ''}"
+%>
+
+<%= setup_context(:object => @collection_management, :controller => :collection_management_records, :title => title) %>
+
 <div class="row-fluid">
    <div class="span3">
       <%= render :partial => "sidebar" %>
@@ -7,25 +15,19 @@
     <%= readonly_context :collection_management, @collection_management.to_hash(true) do |readonly| %>
       <% if user_can?('update_repository') %>
         <div class="btn-group" style="float: right">
-            <%= link_to "Edit", {:controller => :collection_management_records, :action => :edit, :id => @collection_management.id}, :class => "btn btn-small" %>
+            <%= link_to I18n.t("actions.edit"), {:controller => :collection_management_records, :action => :edit, :id => @collection_management.id}, :class => "btn btn-small" %>
           </div>
         <% end %>
 
-        <%=
-          pr = JSONModel.parse_reference(@collection_management.linked_records[0]['ref'])
-          many_lr = @collection_management.linked_records.length > 1 ? true : false
-          rt = I18n.t("#{pr[:type]}._html.#{many_lr ? 'plural' : 'singular'}")
-          nil
-        %>
-        <h2>Processing <%= "#{rt}: #{JSONModel(pr[:type].intern).find(pr[:id]).title}#{many_lr ? ' ...' : ''}"  %> <span class="label label-info">Collection Management Record</span></h2>
+        <h2><%= I18n.t("collection_management_record._html.title_prefix") %> <%= title %> <span class="label label-info"><%= I18n.t("collection_management_record._html.singular") %></span></h2>
 
        <%= render :partial => "shared/flash_messages" %>
 
         <section id="basic_information">
-          <h3>Basic Information</h3>
+          <h3><%= I18n.t("collection_management_record._html.section.basic_information") %></h3>
 
           <div class="row-fluid label-and-value">
-             <div class="span3">Identifier</div>
+             <div class="span3">Id</div>
              <div class="span9"><%= @collection_management.id %></div>
           </div>
           <div class="row-fluid label-and-value">
@@ -76,23 +78,31 @@
           <div class="row-fluid label-and-value">
 
              <div class="span3"><%= I18n.t("collection_management.rights_determined") %></div>
-             <div class="span9"><%= @collection_management.rights_determined ? 'Yes' : 'No' %></div>
+             <div class="span9"><%= @collection_management.rights_determined ? I18n.t("collection_management.rights_determined_true") : I18n.t("collection_management.rights_determined_false") %></div>
 
           </div>
         </section>
 
         <section id="collection_management_linked_records_">
-          <h3>Record Links</h3>
+          <h3><%= I18n.t("linked_record._html.plural") %></h3>
           <div class="row-fluid label-and-value">
-             <div class="span3">Record Links</div>
-             <div class="span9">
-                <% @collection_management.linked_records.each do | ref | %>
-                   <div class="token">
-                      <%= ref["resolved"]["ref"]["title"] %>
-                   </div>
-                <% end %>
+             <div class="span3">
+              <% if @collection_management.linked_records.length > 1 %>
+                <%= I18n.t("linked_record.ref_plural") %>
+              <% else %>
+                <%= I18n.t("linked_record.ref") %>
+              <% end %>
+             </div>
+             <div class="span9 token-list">
+               <% @collection_management.linked_records.each do | ref | %>
+                <%= render_token :object => ref["resolved"]["ref"],
+                                  :label => ref["resolved"]["ref"]["title"],
+                                  :type => ref["resolved"]["ref"]["jsonmodel_type"],
+                                  :uri => ref["ref"] %>
+               <% end %>
              </div>
           </div>
+        </section>
 
      <% end %>
    </div>

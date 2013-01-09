@@ -1,10 +1,10 @@
 @import "variables";
 
 ul.token-input-list {
-  overflow: hidden; 
+  overflow: visible;
   height: auto !important; 
   height: 1%;
-  width: 380px;
+  width: 80%;
   cursor: text;
   font-size: 12px;
   font-family: Verdana, sans-serif;
@@ -29,6 +29,10 @@ ul.token-input-list {
   }
 }
 
+.control-group.error ul.token-input-list {
+  border-color: #ee5f5b;
+}
+
 .input-append ul.token-input-list  {
   .border-radius(@inputBorderRadius 0 0 @inputBorderRadius);
 }
@@ -42,7 +46,7 @@ ul.token-input-list li {
 
 ul.token-input-list li input {
   border: 0;
-  width: 350px;
+  width: 100%;
   padding: 3px 8px;
   background-color: white;
   -webkit-appearance: caret;
@@ -55,7 +59,7 @@ ul.token-input-disabled li input {
 
 ul.token-input-disabled li.token-input-token {
   background-color: #D9E3CA;
-  color: #7D7D7D
+  color: #7D7D7D;
 }
 
 ul.token-input-disabled li.token-input-token span {
@@ -68,8 +72,8 @@ li.token-input-token {
   overflow: hidden; 
   height: auto !important; 
   height: 1%;
-  margin: 3px;
-  background: #BEEBFF;
+  margin: 0 4px 4px 0;
+  #gradient > .vertical(#BEEBFF, #92ddff);
   border: 1px solid #99DEFD;
   padding: 2px;
   color: #555;
@@ -77,10 +81,35 @@ li.token-input-token {
   .border-radius(@inputBorderRadius);
 }
 
+li.token-input-token {
+  margin: 2px;
+  overflow: visible;
+}
+
 .token {
   width: auto;
-  display: inline;
-  padding: 2px 5px;
+  float: left;
+  margin: 0 4px 4px 0;
+  padding: 2px 4px;
+
+  &.has-popover {
+    cursor: pointer;
+  }
+
+  &:hover {
+    #gradient > .vertical(#a4e3ff, #77d5ff);
+    .transition("linear .2s");
+  }
+}
+
+.token-popover.popover {
+  width: auto;
+  padding: 1px;
+  font-weight: normal;
+
+  .popover-content {
+    padding: 2px;
+  }
 }
 
 li.token-input-token p {
@@ -98,7 +127,6 @@ li.token-input-token .token-input-delete-token {
 }
 
 li.token-input-selected-token {
-  background: #BEEBFF;
   font-weight: bold;
 }
 
@@ -161,6 +189,31 @@ div.token-input-dropdown ul li.token-input-selected-dropdown-item {
 
 .linker-list {
   max-height: 240px;
+
+  .token-list > li {
+    float: none;
+    clear: both;
+
+    label {
+      overflow: hidden;
+    }
+
+    label > input {
+      float: left;
+      margin-right: 10px;
+    }
+  }
+
+  .pagination {
+    color: #666;
+    background-color: #FAFAFA;
+    padding: 4px 6px;
+    border-bottom: 1px solid #EEE;
+
+    .navigation {
+      float: right;
+    }
+  }
 }
 
 .linker-list ul {
@@ -171,20 +224,22 @@ div.token-input-dropdown ul li.token-input-selected-dropdown-item {
   padding:0;
 }
 .linker-list label {
-  padding: 5px;
+  padding: 4px 10px 0;
 }
 .linker-list label:hover {
   background-color: #F1f1f1;
 }
+.linker-wrapper {
+  width: 100%;
+  max-width: 440px;
+  display:block !important;
+}
 .linker-wrapper.input-append {
-  float: left;
-  width: 420px;
   .token-input-list {
     float: left;
   }
   .btn-group {
     float: left;
-    left: -1px;
     .btn {
       .border-radius(0 @inputBorderRadius @inputBorderRadius 0);
     }
@@ -196,7 +251,7 @@ div.token-input-dropdown ul li.token-input-selected-dropdown-item {
   }
 }
 
-.token-input-dropdown, .token-input-list {
+.token-input-dropdown, .token-input-list, .token-list {
   .icon-token {
     float: left;
     .opacity(75);
@@ -216,16 +271,28 @@ div.token-input-dropdown ul li.token-input-selected-dropdown-item {
   .digital_object .icon-token {background-position: -384px -120px;}
   .digital_object_component .icon-token {background-position: -456px -24px;}
   .accession .icon-token {background-position: -168px -24px;}
-  .subject .icon-token {display: none;}
-  .location .icon-token {display: none;}
+  .subject .icon-token {background-position: 0 -48px;}
+  .location .icon-token {background-position: -24px -72px;}
 }
 
-@media (min-width: 768px) and (max-width: 979px) {
-  ul.token-input-list {
-    width: 300px;
+.linker-wrapper.sortable {
+  .token-input-token {
+    cursor: pointer;
   }
 
-  ul.token-input-list li input {
-    width: 300px;
+  .sortable-placeholder {
+    height: @baseLineHeight;
+    border: 1px dashed #CCC;
+    padding: 2px;
+    margin: 4px;
+    .border-radius(@inputBorderRadius);
+  }
+}
+.token-list {
+  margin:0;
+  > li {
+    list-style: none;
+    margin-bottom: 4px;
+    float: left;
   }
 }

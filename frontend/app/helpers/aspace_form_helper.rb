@@ -39,16 +39,16 @@ module AspaceFormHelper
 
       objects.each_with_index do |object, idx|
         push(set_index(context_name, idx), object) do
-          result << "<div class=\"subrecord-form-wrapper\" data-object-name=\"#{context_name.gsub(/\[\]/,"").singularize}\">"
+          result << "<li class=\"subrecord-form-wrapper\" data-index=\"#{idx}\" data-object-name=\"#{context_name.gsub(/\[\]/,"").singularize}\">"
           result << hidden_input("lock_version")
           result << @parent.capture(object, &block)
-          result << "</div>"
+          result << "</li>"
         end
       end
 
-      ("<div data-name-path=\"#{set_index(self.path(context_name), '${index}')}\" " +
+      ("<ul data-name-path=\"#{set_index(self.path(context_name), '${index}')}\" " +
        " data-id-path=\"#{id_for(set_index(self.path(context_name), '${index}'), false)}\" " +
-       " class=\"subrecord-form-list\">#{result}</div>").html_safe
+       " class=\"subrecord-form-list\">#{result}</ul>").html_safe
 
     end
 
@@ -110,6 +110,14 @@ module AspaceFormHelper
       form_top
     end
 
+    # Sometimes the subrecord form builder needs to get a resolved 
+    # version of the subrecord data from the parent (this was made to 
+    # support subjects).
+    def resolved_obj
+        @context[-2].last['resolved'][@context.last[0].gsub(/\[([0-9])\]$/, "")][$1.to_i]
+      rescue 
+        nil
+    end
 
     def obj
       @context.last.second
@@ -165,7 +173,7 @@ module AspaceFormHelper
 
 
     def label_and_textfield(name, opts = {})
-      label_with_field(name, textfield(name, obj[name], opts[:field_opts] || {}))
+      label_with_field(name, textfield(name, obj[name], opts[:field_opts] || {}), opts)
     end
 
     def label_and_date(name, opts = {})
@@ -179,13 +187,13 @@ module AspaceFormHelper
     end
 
     def label_and_textarea(name, opts = {})
-      label_with_field(name, textarea(name, obj[name], opts))
+      label_with_field(name, textarea(name, obj[name], opts), opts)
     end
 
 
     def label_and_select(name, options, opts = {})
       options = ([""] + options) if opts[:nodefault]
-      label_with_field(name, select(name, options, opts[:field_opts] || {}))
+      label_with_field(name, select(name, options, opts[:field_opts] || {}), opts)
     end
 
 
@@ -213,7 +221,7 @@ module AspaceFormHelper
 
 
     def select(name, options, opts = {})
-      @forms.select_tag(path(name), @forms.options_for_select(options, obj[name]), {:id => id_for(name)}.merge!(opts))
+      @forms.select_tag(path(name), @forms.options_for_select(options, obj[name] || default_for(name)), {:id => id_for(name)}.merge!(opts))
     end
 
 
@@ -233,32 +241,6 @@ module AspaceFormHelper
                  false, false)
     end
 
-    def jsonmodel_options_for(model, property, add_empty_options = false)
-      options = []
-      options.push(["",""]) if add_empty_options
-      jsonmodel_enum_for(model, property).each do |v|
-        options.push([I18n.t(i18n_for("#{property}_#{v}"), :default => v), v])
-      end
-
-      options
-    end
-
-    def jsonmodel_enum_for(model, property)
-      jsonmodel_schema_definition(model, property)["enum"]
-    end
-
-    def jsonmodel_schema_definition(model, property)
-      JSONModel(model).schema["properties"][property]
-    end
-
-    def options_for(property, values)
-      options = []
-      values.each do |v|
-        options.push([I18n.t(i18n_for("#{property}_#{v}"), :default => v), v])
-      end
-      options
-    end
-
     def hidden_input(name, value = nil)
       value = obj[name] if value.nil?
       @forms.tag("input", {:id => id_for(name), :type => "hidden", :value => value, :name => path(name)},
@@ -272,7 +254,7 @@ module AspaceFormHelper
 
       old = @active_template
       @active_template = name
-      @parent.templates[name].call(self, *args)
+      @parent.templates[name][:block].call(self, *args)
       @active_template = old
 
     end
@@ -290,13 +272,6 @@ module AspaceFormHelper
       "<label class=\"control-label\" for=\"#{id_for(name)}\">#{I18n.t(i18n_for(name))}</label>".html_safe
     end
 
-    def radio(name, value)
-      options = {:id => "#{id_for(name)}_#{value}", :type => "radio", :value => value, :name => path(name)}
-      options[:checked] = "checked" if obj[name] == value
-
-      @forms.tag("input", options, false, false)
-    end
-
     def checkbox(name, opts = {}, default = true, force_checked = false)
       options = {:id => "#{id_for(name)}", :type => "checkbox", :name => path(name), :value => "1"}
       options[:checked] = "checked" if force_checked or (obj[name] === true) or (obj[name] === "true") or (obj[name].nil? and default)
@@ -304,8 +279,38 @@ module AspaceFormHelper
       @forms.tag("input", options.merge(opts), false, false)
     end
 
+
+    def required?(name)
+      if @active_template && @parent.templates[@active_template]
+        @parent.templates[@active_template][:definition].required?(name)
+      else
+        false
+      end
+    end
+
+
+    def default_for(name)
+      if @active_template && @parent.templates[@active_template]
+        @parent.templates[@active_template][:definition].default_for(name)
+      else
+        nil
+      end
+    end
+
+
+    def possible_options_for(name, add_empty_options = false, opts = {})
+      if @active_template && @parent.templates[@active_template]
+        @parent.templates[@active_template][:definition].options_for(self, name, add_empty_options, opts)
+      else
+        []
+      end
+    end
+
+
+
     def label_with_field(name, field_html, opts = {})
       control_group_classes = "control-group"
+      control_group_classes << " required" if opts["required"] or required?(name)
       control_group_classes << " #{opts[:control_class]}" if opts.has_key? :control_class
 
       controls_classes = "controls"
@@ -339,6 +344,7 @@ module AspaceFormHelper
     end
 
     def textarea(name = nil, value = "", opts =  {})
+      return "" if value.blank?
       @parent.preserve_newlines(CGI::escapeHTML(value))
     end
 
@@ -349,6 +355,21 @@ module AspaceFormHelper
     def label_with_field(name, field_html, opts = {})
       return "" if field_html.blank?
       super(name, field_html, opts.merge({:controls_class => "label-only"}))
+    end
+
+    def label_and_fourpartid
+      fourpart_html = "<div class='identifier-display'>"+
+                        "<span class='identifier-display-part'>#{obj["id_0"]}</span>" +
+                        "<span class='identifier-display-part'>#{obj["id_1"]}</span>" +
+                        "<span class='identifier-display-part'>#{obj["id_2"]}</span>" +
+                        "<span class='identifier-display-part'>#{obj["id_3"]}</span>" +
+                      "</div>"
+
+      label_with_field("id_0", fourpart_html)
+    end
+
+    def label_and_date(name, opts = {})
+      label_with_field(name, obj[name].blank? ? "" : Date.strptime(obj[name], "%Y-%m-%d").strftime("%Y-%m-%d"))
     end
   end
 
@@ -377,9 +398,90 @@ module AspaceFormHelper
   end
 
 
-  def define_template(name, &block)
+  class BaseDefinition
+    def required?(name)
+      false
+    end
+  end
+
+
+  def jsonmodel_definition(type)
+    JSONModelDefinition.new(JSONModel(type))
+  end
+
+
+  class JSONModelDefinition < BaseDefinition
+    def initialize(jsonmodel)
+      @jsonmodel = jsonmodel
+    end
+
+
+    def required?(name)
+      (jsonmodel_schema_definition(name) &&
+       jsonmodel_schema_definition(name)['ifmissing'] === 'error')
+    end
+
+
+    def default_for(name)
+      if jsonmodel_schema_definition(name)
+        jsonmodel_schema_definition(name)['default']
+      else
+        nil
+      end
+    end
+
+
+    def options_for(context, property, add_empty_options = false, opts = {})
+      options = []
+      options.push(["",""]) if add_empty_options
+      jsonmodel_enum_for(property).each do |v|
+        i18n_path = opts.has_key?(:i18n_prefix) ? "#{opts[:i18n_prefix]}.#{v}" : context.i18n_for("#{Array(property).last}_#{v}")
+
+        options.push([I18n.t(i18n_path, :default => v), v])
+      end
+
+      options.sort {|a,b| a[0] <=> b[0]}
+    end
+
+    private
+
+    def jsonmodel_enum_for(property)
+      jsonmodel_schema_definition(property)["enum"]
+    end
+
+
+    def jsonmodel_schema_definition(property)
+      schema = @jsonmodel.schema
+      properties = Array(property).clone
+
+      while !properties.empty?
+        if schema['type'] == 'object'
+          schema = schema['properties']
+        elsif schema['type'] == 'array'
+          schema = schema['items']
+        else
+          property = properties.shift
+
+          if properties.empty?
+            return schema[property]
+          else
+            schema = schema[property]
+          end
+        end
+      end
+
+      nil
+    end
+
+  end
+
+
+  def define_template(name, definition = nil, &block)
     @templates ||= {}
-    @templates[name] = block
+    @templates[name] = {
+      :block => block,
+      :definition => (definition || BaseDefinition.new),
+    }
   end
 
 
@@ -402,7 +504,7 @@ module AspaceFormHelper
       end
 
       result << "<div id=\"template_#{name}\"><!--"
-      result << capture(context, &template)
+      result << capture(context, &template[:block])
       result << "--></div>"
     end
 
@@ -429,10 +531,7 @@ module AspaceFormHelper
   def read_only_view(hash, opts = {})
     jsonmodel_type = hash["jsonmodel_type"]
     schema = JSONModel(jsonmodel_type).schema
-    html = ""
-
-    opts[:label_css] = "span3 offset1" if not opts.has_key? :label_css
-    opts[:value_css] = "span8" if not opts.has_key? :value_css
+    html = "<div class='form-horizontal'>"
 
     hash.reject {|k,v| PROPERTIES_TO_EXCLUDE_FROM_READ_ONLY_VIEW.include?(k)}.each do |property, value|
 
@@ -453,53 +552,20 @@ module AspaceFormHelper
         end
       end
 
-      html << "<div class='row-fluid label-and-value'>"
-      html << "<div class='#{opts[:label_css]}'>#{I18n.t("#{jsonmodel_type.to_s}.#{property}")}</div>"
-      html << "<div class='#{opts[:value_css]}'>#{value}</div>"
+      html << "<div class='control-group'>"
+      html << "<div class='control-label'>#{I18n.t("#{jsonmodel_type.to_s}.#{property}")}</div>"
+      html << "<div class='controls label-only'>#{value}</div>"
       html << "</div>"
 
     end
+
+  html << "</div>"
 
     html.html_safe
   end
 
   def preserve_newlines(string)
     string.gsub(/\n/, '<br>')
-  end
-
-  def jsonmodel_url_for(search_result_json, action)
-    case search_result_json["type"]
-      when "accession"
-        {:controller => :accessions, :action => action, :id => JSONModel(:accession).id_for(search_result_json["id"])}
-      when "resource"
-        {:controller => :resources, :action => action, :id => JSONModel(:resource).id_for(search_result_json["id"])}
-      when "archival_object"
-        {
-          :controller => :resources,
-          :action => action,
-          :id => JSONModel(:resource).id_for(search_result_json["resource"]),
-          :anchor => "tree::archival_object_#{JSONModel(:archival_object).id_for(search_result_json["id"])}"
-        }
-      when "digital_object"
-        {:controller => :digital_objects, :action => action, :id => JSONModel(:digital_object).id_for(search_result_json["id"])}
-      when "digital_object_component"
-        {
-          :controller => :digital_objects,
-          :action => action,
-          :id => JSONModel(:digital_object).id_for(search_result_json["digital_object"]),
-          :anchor => "tree::digital_object_component_#{JSONModel(:digital_object_component).id_for(search_result_json["id"])}"
-        }
-      else
-        nil
-    end
-  end
-
-  def jsonmodel_edit_url_for(search_result_json)
-    jsonmodel_url_for(search_result_json, :show)
-  end
-
-  def jsonmodel_view_url_for(search_result_json)
-    jsonmodel_url_for(search_result_json, :edit)
   end
 
 end
