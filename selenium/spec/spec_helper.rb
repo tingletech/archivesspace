@@ -302,6 +302,8 @@ def selenium_init
   caps = Selenium::WebDriver::Remote::Capabilities.firefox
   caps[:name] = "Travis-ci / saucelabs integration"
   caps["selenium-version"] = "2.28.0"
+  caps.platform = 'Linux'
+  caps.version = '16'
 
   if ENV['TRAVIS']
     puts "travis-ci/saucelabs integration"
