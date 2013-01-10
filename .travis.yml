@@ -35,6 +35,10 @@ script:
   - build/run backend:integration
   - build/run common:test
   - build/run dist
+  - java -jar archivesspace.jar 3636 4545 &
+  - sleep 120
+  - export ASPACE_BACKEND_URL=http://localhost:3636
+  - export ASPACE_FRONTEND_URL=http://localhost:4545
   - build/run selenium:test -Dexample='ArchivesSpace user interface Repositories'
   - build/run selenium:test -Dexample='ArchivesSpace user interface Groups'
   - build/run selenium:test -Dexample='ArchivesSpace user interface Subjects'
