@@ -1,5 +1,6 @@
 require_relative 'spec_helper'
 require_relative '../../indexer/periodic_indexer'
+require "selenium-webdriver"
 
 describe "ArchivesSpace user interface" do
 
