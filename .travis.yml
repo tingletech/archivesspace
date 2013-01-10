@@ -35,7 +35,18 @@ script:
   - build/run backend:integration
   - build/run common:test
   - build/run dist
-  - build/run selenium:test
+  - build/run selenium:test -Dexample='ArchivesSpace user interface Repositories'
+  - build/run selenium:test -Dexample='ArchivesSpace user interface Groups'
+  - build/run selenium:test -Dexample='ArchivesSpace user interface Subjects'
+  - build/run selenium:test -Dexample='ArchivesSpace user interface Agents'
+  - build/run selenium:test -Dexample='ArchivesSpace user interface Accessions'
+  - build/run selenium:test -Dexample='ArchivesSpace user interface Collection Management Records'
+  - build/run selenium:test -Dexample='ArchivesSpace user interface Events'
+  - build/run selenium:test -Dexample='ArchivesSpace user interface Resources and archival object trees'
+  - build/run selenium:test -Dexample='ArchivesSpace user interface Notes'
+  - build/run selenium:test -Dexample='ArchivesSpace user interface Digital Objects'
+  - build/run selenium:test -Dexample='ArchivesSpace user interface User management'
+  - build/run selenium:test -Dexample='ArchivesSpace user interface Users and authentication'
 
 notifications:
   irc: "irc.freenode.org#archivesspace"
