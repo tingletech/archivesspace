@@ -5,8 +5,10 @@
 
 env:
   global:
-    - secure: "GgeeGL/kurKF75a/xiDRtNvt+GzSPZasQdCXUXZjEvrzhJdn/1yekVajzOS1\n5d9Y5QizMQbMjL1qjlgzArn44D7qPiycRP5fh1zYUl2IJZRkbgIai3wLPLZ6\nc9gKd5STwiD8TgRht6T83FOOyG4nYPTcB2FQmCluDIzXs5tSCO8="
-    - HOSTNAME=`hostname`
+    # http://saucelabs.com/opensource/travis
+    # http://about.travis-ci.org/docs/user/build-configuration/#Secure-environment-variables
+    - secure: "cQFuCxnO81j/oDv4v8LiOd3NueQijDctjBjqwidM5eMP30c6s+gxummhTQxw\nP707qBNRrleOznI17MF90aeZ4LsKJN9glcYYmKmOwqBbum5u+SduKNb2SYAX\n1lPc6FabymJT5mqMD1+UNp5XFdQP68M+1pN/aP3e8o1t3BASRsE="
+    - secure: "Kx/SGvnx6kE4PtsvPa5y9YT2OhCjpdKxa+0nCjU2dsK+l177eSeQTttjbwE1\nLswz1n+7bs0n9l8GCfq6QAAH7KMpKQUDWultQ4RlTghLX5IubqsMy8QN3YrI\nc67pcB2pYAZFXrgesNz3xRohkfdjjmK/Rx+/NIwgTdJjZQG2i2s="
 
 language: ruby
 
@@ -22,8 +24,12 @@ branches:
     - master
     - saucelabs-travis
 
+before_install:
+  - wget "http://saucelabs.com/downloads/Sauce-Connect-latest.zip"
+  - unzip Sauce-Connect-latest.zip
+  - java -jar Sauce-Connect.jar $SAUCE_USERNAME $SAUCE_ACCESS_KEY &
+
 script:
-  - hostname
   - build/run bootstrap
   - build/run backend:test
   - build/run backend:integration

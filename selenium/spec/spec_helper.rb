@@ -3,6 +3,7 @@ require "json"
 require "selenium-webdriver"
 require "digest"
 require "rspec"
+require 'rubygems'
 require_relative '../../common/test_utils'
 require_relative '../../config/config-distribution'
 
@@ -298,16 +299,15 @@ def selenium_init
 
   @user = "testuser#{Time.now.to_i}_#{$$}"
 
+  caps = Selenium::WebDriver::Remote::Capabilities.firefox
+  caps[:name] = "Travis-ci / saucelabs integration"
+  caps["selenium-version"] = "2.28.0"
 
   if ENV['TRAVIS']
-    caps = Selenium::Webdriver::Remote::Capabilities.firefox
-    caps.platform = 'Linux'
-    caps.version = '13'
-    caps[:name] = "linux firefox16 sauce travis"
-
+    puts "travis-ci/saucelabs integration"
     $driver = Selenium::WebDriver.for(
       :remote,
-      :url => ENV['SAUCE_URL'],
+      :url => "http://" + ENV['SAUCE_USERNAME'] + ":" + ENV['SAUCE_ACCESS_KEY']+ "@ondemand.saucelabs.com:80/wd/hub",
       :desired_capabilities => caps)
   else
     $driver = Selenium::WebDriver.for :firefox
