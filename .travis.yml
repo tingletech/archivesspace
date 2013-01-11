@@ -46,11 +46,11 @@ script:
   - export TEST_NAME='Accessions'; build/run selenium:test -Dexample="$TEST_NAME"
   - export TEST_NAME='Collection Management Records'; build/run selenium:test -Dexample="$TEST_NAME"
   - export TEST_NAME='Events'; build/run selenium:test -Dexample="$TEST_NAME"
-  - export TEST_NAME='Resources and archival object trees'; 	build/run selenium:test -Dexample="$TEST_NAME"
-  - export TEST_NAME='Notes';	 				build/run selenium:test -Dexample="$TEST_NAME"
-  - export TEST_NAME='Digital Objects';	 			build/run selenium:test -Dexample="$TEST_NAME"
-  - export TEST_NAME='User management';	 			build/run selenium:test -Dexample="$TEST_NAME"
-  - export TEST_NAME='Users and authentication'; 		build/run selenium:test -Dexample="$TEST_NAME"
+  - export TEST_NAME='Resources and archival object trees'; build/run selenium:test -Dexample="$TEST_NAME"
+  - export TEST_NAME='Notes'; build/run selenium:test -Dexample="$TEST_NAME"
+  - export TEST_NAME='Digital Objects';	build/run selenium:test -Dexample="$TEST_NAME"
+  - export TEST_NAME='User management';	build/run selenium:test -Dexample="$TEST_NAME"
+  - export TEST_NAME='Users and authentication'; build/run selenium:test -Dexample="$TEST_NAME"
 
 notifications:
   irc: "irc.freenode.org#archivesspace"
