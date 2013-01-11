@@ -300,11 +300,10 @@ def selenium_init
   @user = "testuser#{Time.now.to_i}_#{$$}"
 
   caps = Selenium::WebDriver::Remote::Capabilities.firefox
-  caps[:name] = "Travis-ci / saucelabs integration"
+  caps[:name] = ENV['TEST_NAME']
   caps["selenium-version"] = "2.28.0"
   caps.platform = 'Linux'
   caps.version = '16'
-
   if ENV['TRAVIS']
     puts "travis-ci/saucelabs integration"
     $driver = Selenium::WebDriver.for(
