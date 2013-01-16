@@ -27,7 +27,7 @@ branches:
 before_install:
   - wget "http://saucelabs.com/downloads/Sauce-Connect-latest.zip"
   - unzip Sauce-Connect-latest.zip
-  - java -jar Sauce-Connect.jar $SAUCE_USERNAME $SAUCE_ACCESS_KEY &
+  - java -jar Sauce-Connect.jar $SAUCE_USERNAME $SAUCE_ACCESS_KEY > /dev/null 2>&1 &
 
 script:
   - build/run bootstrap
@@ -35,7 +35,7 @@ script:
   - build/run backend:integration
   - build/run common:test
   - build/run dist
-  - java -Daspace.config.search_user_secret=devserver -XX:MaxPermSize=256m -Xmx256m -Dfile.encoding=UTF-8 -jar archivesspace.jar 3000 4000 5000 &
+  - java -Daspace.config.search_user_secret=devserver -XX:MaxPermSize=256m -Xmx256m -Dfile.encoding=UTF-8 -jar archivesspace.jar 3000 4000 5000 > /dev/null 2>&1 &
   - sleep 120
   - export ASPACE_FRONTEND_URL=http://localhost:3000
   - export ASPACE_BACKEND_URL=http://localhost:4000
