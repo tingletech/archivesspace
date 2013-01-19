@@ -3,15 +3,15 @@ module RESTHelpers
   include JSONModel
 
 
-  def resolve_reference(uri)
-    if uri.is_a? Hash
-      uri = uri['ref']
+  def resolve_reference(reference)
+    if !reference.is_a? Hash
+      raise "Argument must be a {'ref' => '/uri'} hash (not: #{reference})"
     end
 
-    if !JSONModel.parse_reference(uri).nil?
-      JSON.parse(redirect_internal(uri)[2].join(""), :max_nesting => false)
+    if JSONModel.parse_reference(reference['ref'])
+      reference.clone.merge('_resolved' => JSON.parse(redirect_internal(reference['ref'])[2].join(""), :max_nesting => false))
     else
-      uri
+      raise "Couldn't parse ref: #{reference.inspect}"
     end
   end
 
@@ -21,23 +21,23 @@ module RESTHelpers
     return value if (properties_to_resolve.nil? || env['ASPACE_REENTRANT'])
 
     if value.is_a? Hash
-      resolved = {}
+      result = value.clone
 
       value.each do |k, v|
         if properties_to_resolve.include?(k)
-          resolved[k] = (v.is_a? Array) ? v.map {|elt| resolve_reference(elt)} : resolve_reference(v)
+          result[k] = (v.is_a? Array) ? v.map {|elt| resolve_reference(elt)} : resolve_reference(v)
         else
-          resolve_references(v, properties_to_resolve)
+          result[k] = resolve_references(v, properties_to_resolve)
         end
       end
 
-      value['resolved'] = resolved if !resolved.empty?
+      result
 
     elsif value.is_a? Array
-      value.each {|elt| resolve_references(elt, properties_to_resolve)}
+      value.map {|elt| resolve_references(elt, properties_to_resolve)}
+    else
+      value
     end
-
-    value
   end
 
 
@@ -73,6 +73,10 @@ module RESTHelpers
 
     def updated_response(*opts)
       modified_response('Updated', *opts)
+    end
+
+    def deleted_response(id)
+      json_response({:status => 'Deleted', :id => id})
     end
 
 
@@ -144,6 +148,7 @@ module RESTHelpers
 
     def self.get(uri); self.method(:get).uri(uri); end
     def self.post(uri); self.method(:post).uri(uri); end
+    def self.delete(uri); self.method(:delete).uri(uri); end
     def self.method(method); Endpoint.new(method); end
 
     def uri(uri); @uri = uri; self; end
@@ -206,6 +211,8 @@ module RESTHelpers
           end
 
           result = DB.open do
+
+            RequestContext.put(:current_username, current_user.username)
 
             # If the current user is a manager, show them suppressed records
             # too.

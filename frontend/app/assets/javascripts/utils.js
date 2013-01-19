@@ -21,23 +21,6 @@ $(function() {
 });
 
 
-// add form change detection
-$(function() {
-  var ignoredKeycodes = [37,39,9];
-  var onFormElementChange = function(event) {
-    $("#object_container form").triggerHandler("form-changed");
-  };
-  $("#object_container form :input").live("change keyup", function(event) {
-    if ($(this).data("original_value") && ($(this).data("original_value") !== $(this).val())) {
-      onFormElementChange();
-    } else if ($.inArray(event.keyCode, ignoredKeycodes) === -1) {
-      onFormElementChange();
-    }
-  });
-  $("#object_container form :radio, .object-container form :checkbox").live("click", onFormElementChange);
-});
-
-
 // add four part indentifier behaviour
 $(function() {
   var initIdentifierFields = function() {
@@ -325,7 +308,9 @@ $(function() {
 
       var template_data = {
         message: $this.data("message") || "",
-        title: $this.data("title") || "Are you sure?"
+        title: $this.data("title") || "Are you sure?",
+        confirm_label: $this.data("confirm-btn-label") || false,
+        confirm_class: $this.data("confirm-btn-class") || false
       };
 
       var confirmInlineFormAction = function() {
@@ -352,7 +337,7 @@ $(function() {
         event.stopImmediatePropagation();
 
         AS.openCustomModal("confirmChangesModal", template_data.title , AS.renderTemplate("confirmation_modal_template", template_data));
-        $("#confirmButton", confirmChangesModal).click(function() {
+        $("#confirmButton", "#confirmChangesModal").click(function() {
           if ($this.parents(".btn-inline-form:first").length) {
             confirmInlineFormAction();
           } else {

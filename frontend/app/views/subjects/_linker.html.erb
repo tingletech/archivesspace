@@ -1,13 +1,9 @@
 <%
-  resolved_obj = form.resolved_obj
-  
-  if resolved_obj.nil?
+   if form.obj.has_key?('_resolved')
+     selected_json =  form.obj['_resolved'].to_json
+   else
      selected_json = "{}"
-  elsif resolved_obj.is_a?(String)
-    selected_json = JSON(resolved_obj).to_json
-  else
-    selected_json = Subject.from_hash(resolved_obj).to_json
-  end
+   end
 
   data_path = form.path
   data_name = "ref" # De-referenced by the controller if the schema def calls for an item array
@@ -24,10 +20,9 @@
             data-path="<%= data_path %>"
             data-name="<%= data_name %>"
             data-url="<%= url_for :controller => :search, :action => :do_search, :format => :json %>"
-            data-selected='<%= selected_json %>'
-            data-format_template_id="linker_subject_template"
+            data-selected="<%= selected_json %>"
+            data-format_template="title"
             data-multiplicity="one"
-            data-sortable="true"
             data-types='["subject"]'
           />
           <div class="btn-group pull-right">

@@ -6,6 +6,17 @@
     "properties" => {
       "uri" => {"type" => "string", "required" => false},
 
+      "external_ids" => {
+        "type" => "array",
+        "items" => {
+          "type" => "object",
+          "properties" => {
+            "external_id" => {"type" => "string"},
+            "source" => {"type" => "string"},
+          }
+        }
+      },
+
       "event_type" => {
         "type" => "string",
         "ifmissing" => "error",
@@ -32,6 +43,7 @@
         "minItems" => 1,
         "items" => {
           "type" => "object",
+          "subtype" => "ref",
           "properties" => {
             "role" => {
               "type" => "string",
@@ -43,7 +55,11 @@
                                  {"type" => "JSONModel(:agent_family) uri"},
                                  {"type" => "JSONModel(:agent_person) uri"},
                                  {"type" => "JSONModel(:agent_software) uri"}],
-                      "ifmissing" => "error"}
+              "ifmissing" => "error"},
+            "_resolved" => {
+              "type" => "object",
+              "readonly" => "true"
+            }
           }
         }
       },
@@ -54,21 +70,28 @@
         "minItems" => 1,
         "items" => {
           "type" => "object",
+          "subtype" => "ref",
           "properties" => {
             "role" => {
               "type" => "string",
               "enum" => ["source", "outcome", "transfer"],
               "ifmissing" => "error",
             },
-
-            "ref" => {"type" => [{"type" => "JSONModel(:accession) uri"},
-                                 {"type" => "JSONModel(:resource) uri"},
-                                 {"type" => "JSONModel(:archival_object) uri"}],
-                      "ifmissing" => "error"}}
+            "ref" => {
+              "type" => [{"type" => "JSONModel(:accession) uri"},
+                         {"type" => "JSONModel(:resource) uri"},
+                         {"type" => "JSONModel(:archival_object) uri"}],
+              "ifmissing" => "error"
+            },
+            "_resolved" => {
+              "type" => "object",
+              "readonly" => "true"
+            }
+          }
         }
-      }
+      },
     },
 
     "additionalProperties" => false
-  },
+  }
 }

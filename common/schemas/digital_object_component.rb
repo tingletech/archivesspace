@@ -10,8 +10,30 @@
       "publish" => {"type" => "boolean", "default" => true},
       "label" => {"type" => "string"},
 
-      "parent" => {"type" => "JSONModel(:digital_object_component) uri", "required" => false},
-      "digital_object" => {"type" => "JSONModel(:digital_object) uri", "required" => false},
+      "parent" => {
+        "type" => "object",
+        "subtype" => "ref",
+        "properties" => {
+          "ref" => {"type" => "JSONModel(:digital_object_component) uri"},
+          "_resolved" => {
+            "type" => "object",
+            "readonly" => "true"
+          }
+        }
+      },
+
+      "digital_object" => {
+        "type" => "object",
+        "subtype" => "ref",
+        "properties" => {
+          "ref" => {"type" => "JSONModel(:digital_object) uri"},
+          "_resolved" => {
+            "type" => "object",
+            "readonly" => "true"
+          }
+        }
+      },
+
       "position" => {"type" => "integer", "required" => false},
 
       "notes" => {

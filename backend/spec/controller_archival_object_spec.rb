@@ -13,7 +13,10 @@ describe 'Archival Object controller' do
     created = create(:json_archival_object).id
 
     repo = create(:repo, :repo_code => 'OTHERREPO')
-    JSONModel(:archival_object).find(created).should eq nil
+
+    expect {
+      JSONModel(:archival_object).find(created)
+    }.to raise_error(RecordNotFound)
   end
 
   it "lets you list all archival objects" do
@@ -26,23 +29,25 @@ describe 'Archival Object controller' do
     
     resource = create(:json_resource)
 
-    ao_1 = create(:json_archival_object, :resource => resource.uri, :title=> "AO1")
-    ao_2 = create(:json_archival_object, :resource => resource.uri, :title=> "AO2")
+    ao_1 = create(:json_archival_object, :resource => {:ref => resource.uri}, :title => "AO1")
+    ao_2 = create(:json_archival_object, :resource => {:ref => resource.uri}, :title => "AO2")
+    ao_3 = create(:json_archival_object, :resource => {:ref => resource.uri}, :title => "AO3")
 
     tree = JSONModel(:resource_tree).find(nil, :resource_id => resource.id)
 
     tree.children[0]["title"].should eq("AO1")
     tree.children[1]["title"].should eq("AO2")
+    tree.children[2]["title"].should eq("AO3")
 
     ao_1 = JSONModel(:archival_object).find(ao_1.id)
-    ao_1.position = 1
+    ao_1.position = 1  # the second position
     ao_1.save
-
 
     tree = JSONModel(:resource_tree).find(nil, :resource_id => resource.id)
 
     tree.children[0]["title"].should eq("AO2")
     tree.children[1]["title"].should eq("AO1")
+    tree.children[2]["title"].should eq("AO3")
   end
 
 
@@ -53,14 +58,14 @@ describe 'Archival Object controller' do
 
     opts = {:ref_id => 'xyz'}
 
-    create(:json_archival_object, opts.merge(:resource => alpha.uri))
+    create(:json_archival_object, opts.merge(:resource => {:ref => alpha.uri}))
     
     expect { 
-      create(:json_archival_object, opts.merge(:resource => beta.uri))
+      create(:json_archival_object, opts.merge(:resource => {:ref => beta.uri}))
     }.to_not raise_error
 
     expect { 
-      create(:json_archival_object, opts.merge(:resource => alpha.uri))
+      create(:json_archival_object, opts.merge(:resource => {:ref => alpha.uri}))
     }.to raise_error
   end
 
@@ -83,9 +88,9 @@ describe 'Archival Object controller' do
 
     subject = create(:json_subject, {:terms => [build(:json_term, :vocabulary => vocab.uri).to_hash], :vocabulary => vocab.uri})
 
-    created = create(:json_archival_object, :subjects => [subject.uri])
+    created = create(:json_archival_object, :subjects => [{:ref => subject.uri}])
 
-    JSONModel(:archival_object).find(created.id).subjects[0].should eq(subject.uri)
+    JSONModel(:archival_object).find(created.id).subjects[0]['ref'].should eq(subject.uri)
   end
 
 
@@ -102,18 +107,26 @@ describe 'Archival Object controller' do
                                         ], 
                                      :vocabulary => vocab.uri})
 
-    created = create(:json_archival_object, :subjects => [subject.uri])
+    created = create(:json_archival_object, :subjects => [{:ref => subject.uri}])
 
     ao = JSONModel(:archival_object).find(created.id, "resolve[]" => "subjects")
 
-    ao['resolved']['subjects'][0]["terms"][0]["term"].should eq(opts[:term])
+    ao['subjects'][0]['_resolved']["terms"][0]["term"].should eq(opts[:term])
   end
 
 
   it "will won't allow a ref_id to be changed upon update" do
     created =  create(:json_archival_object, "ref_id" => nil)
 
-    JSONModel(:archival_object).find(created.id).ref_id.should_not be_nil
+    ao = JSONModel(:archival_object).find(created.id)
+    ref_id = ao.ref_id
+
+    ref_id.should_not be_nil
+
+    ao.ref_id = "foo"
+    ao.save
+
+    JSONModel(:archival_object).find(created.id).ref_id.should eq(ref_id)
   end
 
 
@@ -121,9 +134,13 @@ describe 'Archival Object controller' do
 
     resource = create(:json_resource)
 
-    parent = create(:json_archival_object, :resource => resource.uri)
+    parent = create(:json_archival_object, :resource => {:ref => resource.uri})
 
-    child = create(:json_archival_object, {:title => 'Child', :parent => parent.uri, :resource => resource.uri})
+    child = create(:json_archival_object, {
+                     :title => 'Child',
+                     :parent => {:ref => parent.uri},
+                     :resource => {:ref => resource.uri}
+                   })
 
     get "#{$repo}/archival_objects/#{parent.id}/children"
     last_response.should be_ok
@@ -170,16 +187,16 @@ describe 'Archival Object controller' do
                                         ).to_hash
                                        ],
                                      :vocabulary => vocab.uri})
-    created = create(:json_archival_object, :subjects => [subject.uri])
+    created = create(:json_archival_object, :subjects => [{:ref => subject.uri}])
 
 
     ao = JSONModel(:archival_object).find(created.id, "resolve[]" => "subjects")
 
-    ao['resolved']['subjects'][0]["terms"][0]["term"].should eq(opts[:term])
+    ao['subjects'][0]['_resolved']["terms"][0]["term"].should eq(opts[:term])
 
     ao.refetch
 
-    ao['resolved']['subjects'][0]["terms"][0]["term"].should eq(opts[:term])
+    ao['subjects'][0]['_resolved']["terms"][0]["term"].should eq(opts[:term])
   end
 
 

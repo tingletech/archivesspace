@@ -3,13 +3,11 @@ require 'spec_helper'
 describe 'Corporate entity agent controller' do
 
   def create_corporate_entity(opts = {})
-
     create(:json_agent_corporate_entity, opts)
   end
 
 
   it "lets you create a corporate entity and get it back" do
-
     opts = {:names => [build(:json_name_corporate_entity).to_hash],
             :agent_contacts => [build(:json_agent_contact).to_hash]
             }
@@ -18,8 +16,8 @@ describe 'Corporate entity agent controller' do
     JSONModel(:agent_corporate_entity).find(ce.id).names.first['primary_name'].should eq(opts[:names][0]['primary_name'])
   end
 
-  it "lets you update a corporate_entity by adding a contact" do
 
+  it "lets you update a corporate_entity by adding a contact" do
     id = create_corporate_entity.id
 
     corporate_entity = JSONModel(:agent_corporate_entity).find(id)
@@ -32,6 +30,7 @@ describe 'Corporate entity agent controller' do
 
     JSONModel(:agent_corporate_entity).find(id).agent_contacts[0]['name'].should eq(opts[:name])
   end
+
 
   it "can add an external document to a corporate entity agent" do
     JSONModel.with_repository(nil) do
@@ -46,6 +45,36 @@ describe 'Corporate entity agent controller' do
     end
   end
 
+
+  it "can give a list of corporate entity agents" do
+    create_corporate_entity
+    create_corporate_entity
+    create_corporate_entity
+
+    JSONModel(:agent_corporate_entity).all(:page => 1)['results'].count.should eq(3)
+  end
+
+
+  it "sets the sort name if one is provided" do
+    opts = {:names => [build(:json_name_corporate_entity, :sort_name => "Custom Sort Name", :sort_name_auto_generate => false).to_hash]}
+
+    id = create_corporate_entity(opts).id
+    JSONModel(:agent_corporate_entity).find(id).names.first['sort_name'].should eq(opts[:names][0]['sort_name'])
+  end
+
+
+  it "auto-generates the sort name if one is not provided" do
+    id = create_corporate_entity({:names => [build(:json_name_corporate_entity,{:primary_name => "ArchivesSpace", :sort_name_auto_generate => true}).to_hash]}).id
+
+    agent = JSONModel(:agent_corporate_entity).find(id)
+
+    agent.names.first['sort_name'].should eq("ArchivesSpace.")
+
+    agent.names.first['qualifier'] = "Global"
+    agent.save
+
+    JSONModel(:agent_corporate_entity).find(id).names.first['sort_name'].should eq("ArchivesSpace. (Global)")
+  end
 
 
 end

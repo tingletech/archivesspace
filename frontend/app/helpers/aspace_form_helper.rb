@@ -17,6 +17,11 @@ module AspaceFormHelper
     end
 
 
+    def h(str)
+      ERB::Util.html_escape(str)
+    end
+
+
     def readonly?
       false
     end
@@ -40,7 +45,7 @@ module AspaceFormHelper
       objects.each_with_index do |object, idx|
         push(set_index(context_name, idx), object) do
           result << "<li class=\"subrecord-form-wrapper\" data-index=\"#{idx}\" data-object-name=\"#{context_name.gsub(/\[\]/,"").singularize}\">"
-          result << hidden_input("lock_version")
+          result << hidden_input("lock_version") if obj.respond_to?(:has_key?) && obj.has_key?("lock_version")
           result << @parent.capture(object, &block)
           result << "</li>"
         end
@@ -110,15 +115,6 @@ module AspaceFormHelper
       form_top
     end
 
-    # Sometimes the subrecord form builder needs to get a resolved 
-    # version of the subrecord data from the parent (this was made to 
-    # support subjects).
-    def resolved_obj
-        @context[-2].last['resolved'][@context.last[0].gsub(/\[([0-9])\]$/, "")][$1.to_i]
-      rescue 
-        nil
-    end
-
     def obj
       @context.last.second
     end
@@ -170,7 +166,6 @@ module AspaceFormHelper
 
       name.gsub(/[\[\]]/, '_')
     end
-
 
     def label_and_textfield(name, opts = {})
       label_with_field(name, textfield(name, obj[name], opts[:field_opts] || {}), opts)
@@ -226,24 +221,44 @@ module AspaceFormHelper
 
 
     def textarea(name = nil, value = "", opts =  {})
-      @forms.text_area_tag(path(name), value,  {:id => id_for(name), :rows => 3}.merge(opts))
+      @forms.text_area_tag(path(name), h(value),  {:id => id_for(name), :rows => 3}.merge(opts))
     end
 
 
     def textfield(name = nil, value = "", opts =  {})
-      @forms.tag("input", {:id => id_for(name), :type => "text", :value => value, :name => path(name)}.merge(opts),
+      value = @forms.tag("input", {:id => id_for(name), :type => "text", :value => h(value), :name => path(name)}.merge(opts),
                  false, false)
+
+      if opts[:automatable]
+        by_default = default_for("#{name}_auto_generate") || false
+        value << "<label>".html_safe
+        value << checkbox("#{name}_auto_generate", {
+          :class => "automate-field-toggle", :display_text_when_checked => I18n.t("states.auto_generated")
+          }, by_default, false)
+        value << "&#160;<small>".html_safe
+        value << I18n.t("actions.automate")
+        value << "</small></label>".html_safe
+      end
+      value
     end
 
 
     def password(name = nil, value = "", opts =  {})
-      @forms.tag("input", {:id => id_for(name), :type => "password", :value => value, :name => path(name)}.merge(opts),
+      @forms.tag("input", {:id => id_for(name), :type => "password", :value => h(value), :name => path(name)}.merge(opts),
                  false, false)
     end
 
     def hidden_input(name, value = nil)
       value = obj[name] if value.nil?
-      @forms.tag("input", {:id => id_for(name), :type => "hidden", :value => value, :name => path(name)},
+
+      full_name = path(name)
+
+      if value && value.is_a?(Hash) && value.has_key?('ref')
+        full_name += '[ref]'
+        value = value['ref']
+      end
+
+      @forms.tag("input", {:id => id_for(name), :type => "hidden", :value => h(value), :name => full_name},
                  false, false)
     end
 
@@ -273,7 +288,7 @@ module AspaceFormHelper
     end
 
     def checkbox(name, opts = {}, default = true, force_checked = false)
-      options = {:id => "#{id_for(name)}", :type => "checkbox", :name => path(name), :value => "1"}
+      options = {:id => "#{id_for(name)}", :type => "checkbox", :name => path(name), :value => 1}
       options[:checked] = "checked" if force_checked or (obj[name] === true) or (obj[name] === "true") or (obj[name].nil? and default)
 
       @forms.tag("input", options.merge(opts), false, false)
@@ -526,7 +541,7 @@ module AspaceFormHelper
     s
   end
 
-  PROPERTIES_TO_EXCLUDE_FROM_READ_ONLY_VIEW = ["jsonmodel_type", "lock_version", "resolved", "uri"]
+  PROPERTIES_TO_EXCLUDE_FROM_READ_ONLY_VIEW = ["jsonmodel_type", "lock_version", "_resolved", "uri", "ref"]
 
   def read_only_view(hash, opts = {})
     jsonmodel_type = hash["jsonmodel_type"]
@@ -542,9 +557,6 @@ module AspaceFormHelper
           value = value === true ? "True" : "False"
         elsif schema["properties"][property]["type"] === "array"
           # this view doesn't support arrays
-          next
-        elsif hash.has_key?("resolved") and hash["resolved"].has_key?(property)
-          # don't display a resolved attribute... as it's probably just a URI
           next
         elsif value.kind_of? Hash
           # can't display an object either

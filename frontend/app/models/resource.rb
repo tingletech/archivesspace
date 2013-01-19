@@ -16,7 +16,7 @@ class Resource < JSONModel(:resource)
 
     # Recursively remove bits that don't make sense to copy (like "lock_version"
     # properties)
-    values = JSONModel(:accession).map_hash_with_schema(values, nil,
+    values = JSONSchemaUtils.map_hash_with_schema(values, JSONModel(:accession).schema,
                                                         [proc { |hash, schema|
                                                           hash = hash.clone
                                                           hash.delete_if {|k, v| k.to_s =~ /^(id_[0-9]|lock_version)$/}
@@ -37,7 +37,7 @@ class Resource < JSONModel(:resource)
                                                      :content => accession.condition_description).to_hash
     end
 
-    self.related_accessions = [{'ref' => accession.uri}]
+    self.related_accessions = [{'ref' => accession.uri, '_resolved' => accession.to_hash}]
 
     self.notes = notes
 
@@ -46,11 +46,6 @@ class Resource < JSONModel(:resource)
     if !self.extents || self.extents.empty?
       self.extents = [JSONModel(:extent).new._always_valid!]
     end
-
-    self['resolved'] ||= {}
-    self['resolved']['related_accessions'] = [accession.to_hash]
-
-    puts self.inspect
   end
 
 

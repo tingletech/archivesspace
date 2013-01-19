@@ -47,7 +47,7 @@ FactoryGirl.define do
   sequence(:ip_status) { sample(JSONModel(:rights_statement).schema['properties']['ip_status']['enum']) }
   sequence(:jurisdiction) { sample(JSONModel(:rights_statement).schema['properties']['jurisdiction']['enum']) }
   
-  sequence(:container_location_status) { sample(JSONModel(:container_location).schema['properties']['status']['enum']) } 
+  sequence(:container_location_status) { sample(JSONModel(:container_location).schema['properties']['status']['enum']) }
   sequence(:temporary_location_type) { sample(JSONModel(:location).schema['properties']['temporary']['enum']) }
   
   # AS Models
@@ -67,6 +67,17 @@ FactoryGirl.define do
     username { generate(:username) }
     name { generate(:generic_name) }
     source 'local'
+  end
+  
+  factory :accession do
+    id_0 { generate(:alphanumstr) }
+    id_1 { generate(:alphanumstr) }
+    id_2 { generate(:alphanumstr) }
+    id_3 { generate(:alphanumstr) }
+    title { "Accession " + generate(:generic_title) }
+    content_description { generate(:generic_description) }
+    condition_description { generate(:generic_description) }
+    accession_date { generate(:yyyy_mm_dd) }
   end
   
   factory :resource do
@@ -150,12 +161,6 @@ FactoryGirl.define do
     barcode_1 { generate(:barcode) }
   end
   
-  factory :json_container_location, class: JSONModel(:container_location) do
-    status { generate(:container_location_status) }
-    start_date { generate(:yyyy_mm_dd) }
-    end_date { generate(:yyyy_mm_dd) }
-  end
-  
   factory :json_date, class: JSONModel(:date) do
     date_type { generate(:date_type) }
     label 'creation'
@@ -221,12 +226,14 @@ FactoryGirl.define do
     rules { generate(:name_rule) }
     primary_name { generate(:generic_name) }
     sort_name { generate(:sort_name) }
+    sort_name_auto_generate true
   end
   
   factory :json_name_family, class: JSONModel(:name_family) do
     rules { generate(:name_rule) }
     family_name { generate(:generic_name) }
     sort_name { generate(:sort_name) }
+    sort_name_auto_generate true
   end
 
   factory :json_name_person, class: JSONModel(:name_person) do
@@ -234,12 +241,14 @@ FactoryGirl.define do
     primary_name { generate(:generic_name) }
     sort_name { generate(:sort_name) }
     name_order 'direct'
+    sort_name_auto_generate true
   end
   
   factory :json_name_software, class: JSONModel(:name_software) do
     rules { generate(:name_rule) }
     software_name { generate(:generic_name) }
     sort_name { generate(:sort_name) }
+    sort_name_auto_generate true
   end
  
   factory :json_resource, class: JSONModel(:resource) do

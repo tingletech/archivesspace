@@ -6,6 +6,17 @@
     "properties" => {
       "uri" => {"type" => "string", "required" => false},
 
+      "external_ids" => {
+        "type" => "array",
+        "items" => {
+          "type" => "object",
+          "properties" => {
+            "external_id" => {"type" => "string"},
+            "source" => {"type" => "string"},
+          }
+        }
+      },
+
       "title" => {"type" => "string", "minLength" => 1, "ifmissing" => "error"},
 
       "id_0" => {"type" => "string", "ifmissing" => "error"},
@@ -18,7 +29,24 @@
 
       "accession_date" => {"type" => "date", "minLength" => 1, "ifmissing" => "error"},
 
-      "subjects" => {"type" => "array", "items" => {"type" => "JSONModel(:subject) uri_or_object"}},
+      "subjects" => {
+        "type" => "array",
+        "items" => {
+          "type" => "object",
+          "subtype" => "ref",
+          "properties" => {
+            "ref" => {
+              "type" => "JSONModel(:subject) uri",
+              "ifmissing" => "error"
+            },
+            "_resolved" => {
+              "type" => "object",
+              "readonly" => "true"
+            }
+          }
+        }
+      },
+
       "extents" => {"type" => "array", "items" => {"type" => "JSONModel(:extent) object"}},
       "dates" => {"type" => "array", "items" => {"type" => "JSONModel(:date) object"}},
       "external_documents" => {"type" => "array", "items" => {"type" => "JSONModel(:external_document) object"}},
@@ -29,9 +57,16 @@
         "type" => "array",
         "items" => {
           "type" => "object",
+          "subtype" => "ref",
           "properties" => {
-            "ref" => {"type" => [{"type" => "JSONModel(:resource) uri"}],
-                      "ifmissing" => "error"}
+            "ref" => {
+              "type" => [{"type" => "JSONModel(:resource) uri"}],
+                      "ifmissing" => "error"
+            },
+            "_resolved" => {
+              "type" => "object",
+              "readonly" => "true"
+            }
           }
         }
       },
@@ -42,6 +77,7 @@
         "type" => "array",
         "items" => {
           "type" => "object",
+          "subtype" => "ref",
           "properties" => {
             "role" => {
               "type" => "string",
@@ -53,7 +89,11 @@
                                  {"type" => "JSONModel(:agent_family) uri"},
                                  {"type" => "JSONModel(:agent_person) uri"},
                                  {"type" => "JSONModel(:agent_software) uri"}],
-                      "ifmissing" => "error"}
+                      "ifmissing" => "error"},
+            "_resolved" => {
+              "type" => "object",
+              "readonly" => "true"
+            }
           }
         }
       },

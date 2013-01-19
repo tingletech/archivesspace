@@ -35,13 +35,17 @@ def do_post(s, url)
 end
 
 
-def do_get(url)
+def do_get(url, raw = false)
   Net::HTTP.start(url.host, url.port) do |http|
     req = Net::HTTP::Get.new(url.request_uri)
     req["X-ARCHIVESSPACE-SESSION"] = @session if @session
     r = http.request(req)
 
-    {:body => JSON(r.body), :status => r.code}
+    if raw
+      r
+    else
+      {:body => JSON(r.body), :status => r.code}
+    end
   end
 end
 
@@ -114,6 +118,7 @@ def run_tests(opts)
   r = do_post({
                 :id_0 => "another#{$me}",
                 :title => "ANOTHER integration test accession #{$$}",
+                :external_ids => [{'source' => 'mark', 'external_id' => 'rhubarb'}],
                 :accession_date => "2011-01-01"
               }.to_json,
               url("/repositories/#{second_repo_id}/accessions"));
@@ -148,7 +153,7 @@ def run_tests(opts)
   r = do_post({
                 :title => "integration test resource #{$$}",
                 :id_0 => "abc123",
-                :subjects => ["/subjects/#{subject_id}"],
+                :subjects => [{"ref" => "/subjects/#{subject_id}"}],
                 :language => "eng",
                 :level => "collection",
                 :extents => [{"portion" => "whole", "number" => "5 or so", "extent_type" => "reels"}]
@@ -160,7 +165,7 @@ def run_tests(opts)
 
   puts "Retrieve the resource with subjects resolved"
   r = do_get(url("/repositories/#{repo_id}/resources/#{coll_id}?resolve[]=subjects"))
-  r[:body]["resolved"]["subjects"][0]["terms"][0]["term"] == "Some term #{$me}" or
+  r[:body]["subjects"][0]["_resolved"]["terms"][0]["term"] == "Some term #{$me}" or
     fail("Resource fetch", r)
 
 
@@ -168,7 +173,7 @@ def run_tests(opts)
   r = do_post({
                 :ref_id => "test#{$me}",
                 :title => "integration test archival object #{$$}",
-                :subjects => ["/subjects/#{subject_id}"],
+                :subjects => [{"ref" => "/subjects/#{subject_id}"}],
                 :level => "item"
               }.to_json,
               url("/repositories/#{repo_id}/archival_objects"))
@@ -178,7 +183,7 @@ def run_tests(opts)
 
   puts "Retrieve the archival object with subjects resolved"
   r = do_get(url("/repositories/#{repo_id}/archival_objects/#{ao_id}?resolve[]=subjects"))
-  r[:body]["resolved"]["subjects"][0]["terms"][0]["term"] == "Some term #{$me}" or
+  r[:body]["subjects"][0]["_resolved"]["terms"][0]["term"] == "Some term #{$me}" or
     fail("Archival object fetch", r)
 
 
@@ -227,6 +232,12 @@ def run_tests(opts)
   rescue TypeError
     puts "Response: #{r.inspect}"
   end
+
+
+  puts "Records can be queried by their external ID"
+  r = do_get(url("/by-external-id?eid=rhubarb"), true)
+  r.code == '303' or fail("fetch by external ID", r)
+
 
   puts "Create an expiring admin session"
   r = do_post(URI.encode_www_form(:password => "admin"),

@@ -14,6 +14,7 @@ describe 'Person agent controller' do
     JSONModel(:agent_person).find(id).names.first['primary_name'].should eq(opts[:names][0]['primary_name'])
   end
 
+
   it "lets you update someone by adding contacts" do
     id = create_person(:agent_contacts => nil).id
 
@@ -29,5 +30,34 @@ describe 'Person agent controller' do
     end
   end
 
+
+  it "can give a list of person agents" do
+    create_person
+    create_person
+
+    JSONModel(:agent_person).all(:page => 1)['results'].count.should eq(2)
+  end
+
+
+  it "sets the sort name if one is provided" do
+    opts = {:names => [build(:json_name_person, :sort_name => "Custom Sort Name", :sort_name_auto_generate => false).to_hash]}
+
+    id = create_person(opts).id
+    JSONModel(:agent_person).find(id).names.first['sort_name'].should eq(opts[:names][0]['sort_name'])
+  end
+
+
+  it "auto-generates the sort name if one is not provided" do
+    id = create_person({:names => [build(:json_name_person,{:primary_name => "Hendrix", :rest_of_name => "Jimi", :title => "Mr", :name_order => "direct", :sort_name_auto_generate => true}).to_hash]}).id
+
+    agent = JSONModel(:agent_person).find(id)
+
+    agent.names.first['sort_name'].should eq("Hendrix, Jimi, Mr")
+
+    agent.names.first['name_order'] = "inverted"
+    agent.save
+
+    JSONModel(:agent_person).find(id).names.first['sort_name'].should eq("Jimi Hendrix, Mr")
+  end
 
 end

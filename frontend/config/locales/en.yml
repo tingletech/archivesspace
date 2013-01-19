@@ -1,6 +1,7 @@
 en:
   actions:
     add: Add
+    automate: Automate
     browse: Browse
     cancel: Cancel
     confirm: Confirm
@@ -24,12 +25,21 @@ en:
     save_plus_one: "+1"
     save_anyway: Save Anyway
     suppress: Suppress
-    suppress_confirm_message: Suppress this Accession?
+    suppress_confirm_title: Suppress this Record?
+    suppress_confirm_message: While a suppressed record will remain in the database, it will become hidden to most users and unavailable to most functions.
     unsuppress: Unsuppress
-    unsuppress_confirm_message: Unsuppress this Accession?
+    unsuppress_confirm_title: Unsuppress this Record?
+    unsuppress_confirm_message: false
+    delete: Delete
+    delete_confirm_title: Delete this Record?
+    delete_confirm_message: "<p>Please be aware <strong>you cannot undo this action</strong>.</p><p>This action will remove the record from the database, including any references it has to other records.</p>"
     export_ead: Download EAD
+    loading: Loading...
+    revert: Revert Changes
+    finish_editing: Finish Editing
   states:
     suppressed: Suppressed
+    auto_generated: System generates when saved
   navbar:
     brand: ArchivesSpace
     create: Create
@@ -88,9 +98,15 @@ en:
     ead_import_another: Import Another EAD File
     submit: Import
     submit_busy_message: Importing...
+    messages:
+      missing_repo: You need to select a repository before importing
+      missing_file: Please select an EAD file to upload
+      error_prefix: Error importing file
   errors:
-    403: Unable to Access Page
-    403_message: "The page you've tried to access may no longer exist or you may not have permission to view it."
+    error_403: Unable to Access Page
+    error_403_message: "The page you've tried to access may no longer exist or you may not have permission to view it."
+    error_404: Record Not Found
+    error_404_message: "The record you've tried to access may no longer exist or you may not have permission to view it."
   iso_3166:
     AF: AFGHANISTAN (AF)
     AX: ÅLAND ISLANDS (AX)
@@ -829,6 +845,7 @@ en:
     language_zza: Zaza; Dimili; Dimli; Kirdki; Kirmanjki; Zazaki
   digital_object:
     title: Title
+    title_default: New Digital Object
     digital_object_id: Identifier
     publish: Publish?
     level: Level
@@ -852,11 +869,15 @@ en:
     _html:
       singular: Digital Object
       plural: Digital Objects
+      messages:
+        created: Digital Object Created
+        updated: Digital Object Saved
       section:
         basic_information: Basic Information
   digital_object_component:
     label: Label
     title: Title
+    title_default: New Digital Object Component
     component_id: Identifier
     publish: Publish
     language: Language
@@ -864,9 +885,13 @@ en:
     _html:
       singular: Digital Object Component
       plural: Digital Object Components
+      messages:
+        created: Digital Object Component Created
+        updated: Digital Object Component Saved
       section:
         basic_information: Basic Information
   location:
+    title: Title
     temporary: Temporary
     temporary_conservation: Conservation
     temporary_exhibit: Exhibit
@@ -894,6 +919,9 @@ en:
     _html:
       singular: Location
       plural: Locations
+      messages:
+        created: Location Created
+        updated: Location Saved
       section:
         basic_information: Basic Information
 
@@ -983,6 +1011,9 @@ en:
     _html:
       singular: Event
       plural: Events
+      messages:
+        created: Event Created
+        updated: Event Saved
       section:
         basic_information: Basic Information
   deaccession:
@@ -1021,7 +1052,7 @@ en:
     dates: Dates
     qualifier: Qualifier
     sort_name: Sort Name
-    sort_name_auto_generate: Automatically generate?
+    sort_name_auto_generate: Auto Generate Sort Name?
     description_type: Description Type
     description_note: Description Note
     description_citation: Description Citation
@@ -1042,6 +1073,10 @@ en:
     software_name: Software Name
     version: Version
     manufacturer: Manufacturer
+  name:
+    _html:
+      singular: Name
+      plural: Names
   agent_person:
     _html:
       singular: Person
@@ -1287,6 +1322,13 @@ en:
     _html:
       singular: Accession
       plural: Accessions
+      messages:
+        created: Accession Created
+        unsuppressed: Accession Unsuppressed
+        updated: Accession Saved
+        suppressed: Accession Suppressed
+        suppressed_info: Accession is suppressed and cannot be edited
+        deleted: Accession Deleted
       section:
         basic_information: Basic Information
   agent: &agent_attributes
@@ -1300,12 +1342,16 @@ en:
     _html:
       singular: Agent
       plural: Agents
+      messages:
+        created: Agent Created
+        updated: Agent Saved
       section:
         basic_information: Basic Information
         name: Names
         contacts: Contact Details
   archival_object:
     title: Title
+    title_default: New Archival Object
     ref_id: Ref ID
     ref_id_auto_generation_message: "-- auto-generated upon save --"
     level: Level
@@ -1322,11 +1368,16 @@ en:
     level_subseries: Sub-Series
     other_level: Other Level
     language: Language
+    automate_title: Automate
+    dates: Dates
     <<: *language_attributes
     "[:resource_id, :ref_id]": Ref ID
     _html:
       singular: Archival Object
       plural: Archival Objects
+      messages:
+        created: Archival Object Created
+        updated: Archival Object Saved
       section:
         basic_information: Basic Information
   group:
@@ -1344,6 +1395,7 @@ en:
       plural: Groups
   resource:
     title: Title
+    title_default: New Resource
     id_0: Identifier
     "[:id_0, :id_1, :id_2, :id_3]": Identifier
     "[:repo_id, :identifier]": Identifier
@@ -1396,9 +1448,21 @@ en:
     _html:
       singular: Resource
       plural: Resources
+      messages:
+        created: Resource Created
+        updated: Resource Saved
+        spawned: Resource spawned from Accession
       section:
         basic_information: Basic Information
         finding_aid: Finding Aid
+  related_accession:
+    _html:
+      singular: Related Accession
+      plural: Related Accessions
+  related_resource:
+    _html:
+      singular: Related Resource
+      plural: Related Resources
   repository:
     repo_code: Repository code
     description: Description
@@ -1416,6 +1480,9 @@ en:
     _html:
       singular: Subject
       plural: Subjects
+      messages:
+        created: Subject Created
+        updated: Subject Saved
       section:
         basic_information: Basic Information
   user:
@@ -1426,6 +1493,11 @@ en:
     _html:
       singular: User
       plural: Users
+      messages:
+        created: User Created
+        updated: User Saved
+        error_update: User not saved
+        error_create:
       section:
         account: Account
         edit_account: Edit Account
@@ -1461,11 +1533,14 @@ en:
     rights_determined: Rights determined
     rights_determined_true: Yes
     rights_determined_false: No
-    linked_records: Linked records
+    linked_records: Record Links
     _html:
       singular: Collection Management Record
       plural: Collection Management Records
       title_prefix: Processing 
+      messages:
+        created: Collection Management Record Created
+        updated: Collection Management Record Saved
       section:
         basic_information: Basic Information
   collection_management_linked_record:

@@ -54,7 +54,7 @@ class Selenium::WebDriver::Driver
   def wait_for_ajax
     try = 0
     while (self.execute_script("return document.readyState") != "complete" or
-           not self.execute_script("return window.$ == undefined || $.active == 0"))
+      not self.execute_script("return window.$ == undefined || $.active == 0"))
       if (try > Selenium::Config.retries)
         raise "Retry limit hit on wait_for_ajax"
       end
@@ -401,12 +401,22 @@ def select_repo(code)
 end
 
 
+def add_user_to_archivists(user, repo)
+  add_user_to_group(user, repo, 'repository-archivists')
+end
+
+
 def add_user_to_managers(user, repo)
+  add_user_to_group(user, repo, 'repository-managers')
+end
+
+
+def add_user_to_group(user, repo, group_code)
   req = Net::HTTP::Get.new("#{repo}/groups?page=1")
 
   groups = admin_backend_request(req)
 
-  uri = JSON.parse(groups.body)['results'].find {|group| group['group_code'] == 'repository-archivists'}['uri']
+  uri = JSON.parse(groups.body)['results'].find {|group| group['group_code'] == group_code}['uri']
 
   req = Net::HTTP::Get.new(uri)
   group = JSON.parse(admin_backend_request(req).body)
@@ -437,15 +447,15 @@ def create_agent(name)
     "agent_contacts" => [],
     "agent_type" => "agent_person",
     "names" => [
-              {
-                "name_order" => "inverted",
-                "authority_id" => "authid123",
-                "primary_name" => name,
-                "rest_of_name" => name,
-                "sort_name" => name,
-                "source" => "local"
-              }
-             ],
+      {
+        "name_order" => "inverted",
+        "authority_id" => "authid123",
+        "primary_name" => name,
+        "rest_of_name" => name,
+        "sort_name" => name,
+        "source" => "local"
+      }
+    ],
   }.to_json
 
 
@@ -465,7 +475,7 @@ def login_as_archivist
 
   if !$archivist_user
     ($archivist_user, $archivist_pass) = create_user
-    add_user_to_managers($archivist_user, $test_repo_uri)
+    add_user_to_archivists($archivist_user, $test_repo_uri)
   end
 
 
@@ -475,23 +485,23 @@ def login_as_archivist
 end
 
 
-def report_sleep
-  puts "Total time spent sleeping: #{$sleep_time.inspect} seconds"
+def login_as_repo_manager
+  if !$test_repo
+    ($test_repo, $test_repo_uri) = create_test_repo("repo_#{Time.now.to_i}_#{$$}", "description")
+  end
+
+  if !$repo_manager_user
+    ($repo_manager_user, $repo_manager_password) = create_user
+    add_user_to_managers($repo_manager_user, $test_repo_uri)
+  end
+
+
+  login($repo_manager_user, $repo_manager_password)
+
+  select_repo($test_repo)
 end
 
 
-def check_sort_name_eq(id, value)
-  $driver.execute_script("$('##{id.gsub('sort_name', 'primary_name')}').trigger('change');")
-
-  $driver.wait_for_ajax
-
-  assert do
-    elt = $driver.find_element(:id => id).attribute("value")
-
-    if !elt || elt.empty?
-      raise "Retrying"
-    else
-      elt.should eq(value)
-    end
-  end
+def report_sleep
+  puts "Total time spent sleeping: #{$sleep_time.inspect} seconds"
 end

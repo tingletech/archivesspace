@@ -65,6 +65,25 @@ module ASModel
     end
 
 
+    # Delete the current record using Sequel's delete method, but clean up
+    # dependencies first.
+    def delete
+      (self.class.linked_records[self.class] or []).each do |linked_record|
+        self.class.remove_existing_linked_records(self, linked_record)
+      end
+
+      self.class.prepare_for_deletion([self])
+
+      uri = self.uri
+
+      super
+
+      Tombstone.create(:uri => uri)
+
+      RealtimeIndexing.record_delete(uri)
+    end
+
+
     # When reporting a Sequel validation error against the set of 'columns',
     # report it against the JSONModel 'property' instead.
     #
@@ -303,8 +322,12 @@ module ASModel
             end
           end
 
+          # Delete any relationships involving the objects from the other table (since we're about to delete them)
+          dataset = obj.send("#{record[:association][:name]}_dataset")
+          model.prepare_for_deletion(dataset)
+
           # Delete the objects from the other table
-          obj.send("#{record[:association][:name]}_dataset").delete
+          dataset.delete
         elsif record[:association][:type] === :many_to_many
           # Just remove the links
           obj.send("remove_all_#{record[:association][:name]}".intern)
@@ -375,6 +398,11 @@ module ASModel
         sequel_to_jsonmodel(obj, opts)
       end
 
+
+      def prepare_for_deletion(dataset)
+        # Provide a hook for models to do something in response to a dataset being deleted.
+        # We won't do anything here, but mixins can add to this.
+      end
     end
   end
 

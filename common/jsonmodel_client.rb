@@ -177,6 +177,13 @@ module JSONModel
     end
 
 
+    def self.delete_request(url)
+      req = Net::HTTP::Delete.new(url.request_uri)
+
+      do_http_request(url, req)
+    end
+
+
     def self.get_response(url)
       req = Net::HTTP::Get.new(url.request_uri)
 
@@ -251,6 +258,20 @@ module JSONModel
     end
 
 
+    def delete
+      response = JSONModel::HTTP.delete_request(self.class.my_url(self.id))
+
+      if response.code == '200'
+        true
+      elsif response.code == '403'
+        raise AccessDeniedException.new
+      elsif response.code == '404'
+        nil
+      else
+        raise Exception.new("Unknown response: #{response}")
+      end
+    end
+
     # Mark the suppression status of this record
     def set_suppressed(val)
       response = JSONModel::HTTP.post_form("#{self.uri}/suppressed", :suppressed => val)
@@ -289,9 +310,9 @@ module JSONModel
           alias :_substitute_parameters :substitute_parameters
 
           def substitute_parameters(uri, opts = {})
-            if not opts.has_key?(:repo_id)
-              opts = opts.clone
-              opts[:repo_id] = Thread.current[:selected_repo_id]
+            opts = ASUtils.keys_as_strings(opts)
+            if Thread.current[:selected_repo_id]
+              opts = {'repo_id' => Thread.current[:selected_repo_id]}.merge(opts)
             end
 
             _substitute_parameters(uri, opts)
@@ -332,7 +353,7 @@ module JSONModel
         elsif response.code == '403'
           raise AccessDeniedException.new
         elsif response.code == '404'
-          nil
+          raise RecordNotFound.new
         else
           raise response.body
         end

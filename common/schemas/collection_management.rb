@@ -5,7 +5,18 @@
     "uri" => "/repositories/:repo_id/collection_management_records",
     "properties" => {
       "uri" => {"type" => "string", "required" => false},
-      
+
+      "external_ids" => {
+        "type" => "array",
+        "items" => {
+          "type" => "object",
+          "properties" => {
+            "external_id" => {"type" => "string"},
+            "source" => {"type" => "string"},
+          }
+        }
+      },
+
       "cataloged_note" => {"type" => "string", "required" => false},
       "processing_hours_per_foot_estimate" => {"type" => "string", "required" => false},
       "processing_total_extent" => {"type" => "string", "required" => false},
@@ -23,11 +34,16 @@
         "minItems" => 1,
         "items" => {
           "type" => "object",
+          "subtype" => "ref",
           "properties" => {
             "ref" => {"type" => [{"type" => "JSONModel(:accession) uri"},
                                  {"type" => "JSONModel(:resource) uri"},
                                  {"type" => "JSONModel(:digital_object) uri"}],
-              "ifmissing" => "error"}
+              "ifmissing" => "error"},
+            "_resolved" => {
+              "type" => "object",
+              "readonly" => "true"
+            }
           }
         }
       }

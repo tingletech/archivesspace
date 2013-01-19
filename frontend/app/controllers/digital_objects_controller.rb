@@ -3,12 +3,14 @@ class DigitalObjectsController < ApplicationController
   before_filter :user_needs_to_be_a_viewer, :only => [:index, :show, :tree]
   before_filter :user_needs_to_be_an_archivist, :only => [:new, :edit, :create, :update]
 
+  FIND_OPTS = ["subjects", "linked_agents"]
+
   def index
     @search_data = JSONModel(:digital_object).all(:page => selected_page)
   end
 
   def show
-    @digital_object = JSONModel(:digital_object).find(params[:id], "resolve[]" => ["subjects","ref"])
+    @digital_object = JSONModel(:digital_object).find(params[:id], "resolve[]" => FIND_OPTS)
 
     if params[:inline]
       return render :partial => "digital_objects/show_inline"
@@ -18,15 +20,15 @@ class DigitalObjectsController < ApplicationController
   end
 
   def new
-    @digital_object = JSONModel(:digital_object).new({:title => "New Digital Object"})._always_valid!
+    @digital_object = JSONModel(:digital_object).new({:title => I18n.t("digital_object.title_default")})._always_valid!
   end
 
   def edit
-    @digital_object = JSONModel(:digital_object).find(params[:id], "resolve[]" => ["subjects","ref"])
+    @digital_object = JSONModel(:digital_object).find(params[:id], "resolve[]" => FIND_OPTS)
 
-    if params[:inline]
-      return render :partial => "digital_objects/edit_inline"
-    end
+    flash.keep if not flash.empty? # keep the notices so they display on the subsequent ajax call
+
+    return render :partial => "digital_objects/edit_inline" if params[:inline]
 
     fetch_tree
   end
@@ -36,10 +38,12 @@ class DigitalObjectsController < ApplicationController
     handle_crud(:instance => :digital_object,
                 :on_invalid => ->(){ render action: "new" },
                 :on_valid => ->(id){ 
-                  flash[:success] = "Digital Object Created"
-                  redirect_to(:controller => :digital_objects,
-                                                 :action => :edit,
-                                                 :id => id) 
+                  redirect_to({
+                                :controller => :digital_objects,
+                                :action => :edit,
+                                :id => id
+                              },
+                              :flash => {:success => I18n.t("digital_object._html.messages.created")}) 
                 })
   end
 
@@ -47,12 +51,12 @@ class DigitalObjectsController < ApplicationController
   def update
     handle_crud(:instance => :digital_object,
                 :obj => JSONModel(:digital_object).find(params[:id],
-                                                  "resolve[]" => ["subjects","ref"]),
+                                                  "resolve[]" => FIND_OPTS),
                 :on_invalid => ->(){
                   render :partial => "edit_inline"
                 },
                 :on_valid => ->(id){
-                  flash[:success] = "Digital Object Saved"
+                  flash.now[:success] = I18n.t("digital_object._html.messages.updated")
                   render :partial => "edit_inline"
                 })
   end

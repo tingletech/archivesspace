@@ -55,22 +55,6 @@ describe 'JSON model' do
   end
 
 
-  it "provides accessors for non-schema properties but doesn't serialise them" do
-
-    obj = JSONModel(:testschema).from_hash({
-                                             "elt_0" => "helloworld",
-                                             "special" => "some string"
-                                           })
-
-    obj.elt_0.should eq ("helloworld")
-    obj.special.should eq ("some string")
-
-    obj.to_hash.has_key?("special").should be_false
-    JSON[obj.to_json].has_key?("special").should be_false
-
-  end
-
-
   it "allows for updates" do
 
     obj = JSONModel(:testschema).from_hash({
@@ -193,6 +177,35 @@ describe 'JSON model' do
   end
 
 
+  it "supports adding errors to objects" do
+    ts = JSONModel(:testschema).from_hash({
+                                            "elt_0" => "helloworld",
+                                            "elt_1" => "thisisatest"
+                                          })
+    ts.add_error("elt_0", "'hello world' is two words, you squashed them together")
+    ts._exceptions[:errors]["elt_0"].include?("'hello world' is two words, you squashed them together")
+      .should be_true
+  end
+
+
+  it "supports adding custom error handlers" do
+    JSONModel::add_error_handler do |error|
+      if error["code"] == "OUTTOLUNCH"
+        raise NotFoundException.new("Seriously not good enough")
+      end
+    end
+    expect {
+      JSONModel::handle_error({"code" => "OUTTOLUNCH"})
+    }.to raise_error(NotFoundException)
+  end
+
+
+  it "can set the current backend session token and get it back" do
+    JSONModel::HTTP.current_backend_session = 'moo'
+    JSONModel::HTTP.current_backend_session.should eq('moo')
+  end
+
+
   it "enforces minimum length of property values" do
 
     ts = JSONModel(:testschema).from_hash({
@@ -261,43 +274,6 @@ describe 'JSON model' do
     # it's not clear to me how @errors would legitimately be set
     ts.instance_variable_set(:@errors, {"a_terrible_thing" => "happened earlier"})
     ts._exceptions[:errors].keys.should eq(["a_terrible_thing"])
-
-  end
-
-
-  it "handles recursively nested models" do
-
-    JSONModel.create_model_for("treeschema",
-                               {
-                                 "$schema" => "http://www.archivesspace.org/archivesspace.json",
-                                 "type" => "object",
-                                 "uri" => "/treethings",
-                                 "properties" => {
-                                   "name" => {"type" => "string", "required" => true, "minLength" => 1},
-                                   "children" => {"type" => "array", "additionalItems" => false, "items" => { "$ref" => "#" }},
-                                 },
-
-                                 "additionalProperties" => true
-                               })
-
-    child = JSONModel(:treeschema).from_hash({
-                                               "name" => "a nested child",
-                                               "moo" => "rubbish"
-                                             })
-
-    tsh = JSONModel(:treeschema).from_hash({
-                                             "name" => "a parent with a nest",
-                                             "foo" => "trash",
-                                             "children" => [child.to_hash,
-                                                            {"name" => "hash baby", "goo" => "junk"}]
-                                           }).to_hash
-
-    tsh.keys.should include("name")
-    tsh.keys.should_not include("foo")
-    tsh["children"][0].keys.should include("name")
-    tsh["children"][0].keys.should_not include("moo")
-    tsh["children"][1].keys.should include("name")
-    tsh["children"][1].keys.should_not include("goo")
 
   end
 
@@ -383,6 +359,53 @@ describe 'JSON model' do
     expect {
       term.save
     }.to_not raise_error(ValidationException)
+  end
+
+
+  it "supports validations across multiple threads" do
+    threads = []
+
+    threads << Thread.new do
+      1000.times do
+        build(:json_archival_object).to_hash
+      end
+
+      :ok
+    end
+
+    threads << Thread.new do
+      1000.times do
+        build(:json_resource).to_hash
+      end
+
+      :ok
+    end
+
+    threads << Thread.new do
+      1000.times do
+        build(:json_accession).to_hash
+      end
+
+      :ok
+    end
+
+    threads << Thread.new do
+      1000.times do
+        begin
+          build(:json_accession, :title => nil).to_hash
+        rescue JSONModel::ValidationException => e
+          e.errors.keys == ["title"] or raise "Oops: #{e.inspect}"
+        end
+      end
+
+      :ok
+    end
+
+
+    threads.each do |t|
+      t.join
+      t.value.should eq(:ok)
+    end
   end
 
 end

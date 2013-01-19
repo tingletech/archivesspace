@@ -13,7 +13,12 @@
       "type_3" => {"type" => "string"},
       "indicator_3" => {"type" => "string"},
 
-      "container_locations" => {"type" => "array", "items" => {"type" => "JSONModel(:container_location) uri_or_object"}},
+      "container_locations" => {
+        "type" => "array",
+        "items" => {
+          "type" => "JSONModel(:container_location) object",
+        }
+      }
     },
 
     "additionalProperties" => false,

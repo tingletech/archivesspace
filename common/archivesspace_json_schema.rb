@@ -35,6 +35,11 @@ class ArchivesSpaceTypeAttribute < JSON::Schema::TypeAttribute
   def self.validate(current_schema, data, fragments, validator, options = {})
     types = current_schema.schema['type']
 
+    if types == 'object' && data.is_a?(Hash) && data.has_key?('ref') && current_schema.schema['subtype'] != 'ref'
+      # Provide a helpful warning about potentially missing subtype definitions
+      $stderr.puts("WARNING: Schema #{current_schema.inspect} appears to be missing a subtype definition of 'ref'")
+    end
+
     # A bit crazy, sorry.  If we're being asked to validate a hash whose
     # jsonmodel_type is marked against a different JSONModel schema, we're
     # wasting our time.  Just stop straight away.
@@ -87,11 +92,24 @@ class ArchivesSpaceTypeAttribute < JSON::Schema::TypeAttribute
 end
 
 
+class ArchivesSpaceSubTypeAttribute < JSON::Schema::TypeAttribute
+
+  def self.validate(current_schema, data, fragments, validator, options = {})
+    if data.is_a?(Hash) && !data.has_key?('ref')
+      message = "ERROR: The property '#{build_fragment(fragments)}' did not contain a required property of 'ref'"
+      validation_error(message, fragments, current_schema, self, options[:record_errors])
+    end
+  end
+
+end
+
+
 class ArchivesSpaceSchema < JSON::Schema::Validator
   def initialize
     super
     extend_schema_definition("http://json-schema.org/draft-03/schema#")
     @attributes["type"] = ArchivesSpaceTypeAttribute
+    @attributes["subtype"] = ArchivesSpaceSubTypeAttribute
     @attributes["properties"] = IfMissingAttribute
     @uri = URI.parse("http://www.archivesspace.org/archivesspace.json")
   end

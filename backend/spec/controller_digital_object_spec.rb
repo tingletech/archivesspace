@@ -33,8 +33,14 @@ describe 'Digital Objects controller' do
   end
 
 
-  it "lets you query the record tree of related digital object components" do
+  it "can give a list of digital objects" do
+    create(:json_digital_object)
+    create(:json_digital_object)
+    JSONModel(:digital_object).all(:page => 1)['results'].count.should eq(2)
+  end
 
+
+  it "lets you query the record tree of related digital object components" do
     digital_object = create(:json_digital_object)
     id = digital_object.id
 
@@ -42,10 +48,10 @@ describe 'Digital Objects controller' do
     ["earth", "australia", "canberra"].each do |name|
       doc = create(:json_digital_object_component, {:title => "digital object component: #{name}"})
       if not docs.empty?
-        doc.parent = docs.last.uri
+        doc.parent = {:ref => docs.last.uri}
       end
 
-      doc.digital_object = digital_object.uri
+      doc.digital_object = {:ref => digital_object.uri}
 
       doc.save
       docs << doc
@@ -64,8 +70,8 @@ describe 'Digital Objects controller' do
     doc1 = build(:json_digital_object_component)
     doc2 = build(:json_digital_object_component)
 
-    doc1.digital_object = digital_object.uri
-    doc2.digital_object = digital_object.uri
+    doc1.digital_object = {:ref => digital_object.uri}
+    doc2.digital_object = {:ref => digital_object.uri}
 
     doc1.save
     doc2.save
