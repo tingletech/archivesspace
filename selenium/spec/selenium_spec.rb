@@ -63,10 +63,10 @@ describe "ArchivesSpace user interface" do
     it "flags errors when creating a repository with missing fields" do
       $driver.find_element(:css, '.user-container .btn').click
       $driver.find_element(:link, "Create a Repository").click
-      $driver.clear_and_send_keys([:id, "repository_description_"], "missing repo code")
+      $driver.clear_and_send_keys([:id, "repository_name_"], "missing repo code")
       $driver.find_element(:css => "form#new_repository input[type='submit']").click
 
-      assert { $driver.find_element(:css => "div.alert.alert-error").text.should eq('Repository code - Property is required but was missing') }
+      assert { $driver.find_element(:css => "div.alert.alert-error").text.should eq('Repository Short Name - Property is required but was missing') }
       $driver.find_element(:css => "div.modal-footer button.btn").click
     end
 
@@ -75,7 +75,7 @@ describe "ArchivesSpace user interface" do
       $driver.find_element(:css, '.user-container .btn').click
       $driver.find_element(:link, "Create a Repository").click
       $driver.clear_and_send_keys([:id, "repository_repo_code_"], @test_repo_code_1)
-      $driver.clear_and_send_keys([:id, "repository_description_"], @test_repo_name_1)
+      $driver.clear_and_send_keys([:id, "repository_name_"], @test_repo_name_1)
       $driver.find_element(:css => "form#new_repository input[type='submit']").click
     end
 
@@ -84,7 +84,7 @@ describe "ArchivesSpace user interface" do
       $driver.find_element(:css, '.user-container .btn').click
       $driver.find_element(:link, "Create a Repository").click
       $driver.clear_and_send_keys([:id, "repository_repo_code_"], @test_repo_code_2)
-      $driver.clear_and_send_keys([:id, "repository_description_"], @test_repo_name_2)
+      $driver.clear_and_send_keys([:id, "repository_name_"], @test_repo_name_2)
       $driver.find_element(:css => "form#new_repository input[type='submit']").click
     end
 
@@ -325,7 +325,7 @@ describe "ArchivesSpace user interface" do
       $driver.execute_script("$('.nav .dropdown-submenu a:contains(Agent)').focus()");
       $driver.find_element(:link, 'Person').click
       $driver.find_element(:css => "form .record-pane button[type='submit']").click
-      $driver.find_element_with_text('//div[contains(@class, "error")]', /Primary Name - Property is required but was missing/)
+      $driver.find_element_with_text('//div[contains(@class, "error")]', /Primary Part of Name - Property is required but was missing/)
     end
 
 
@@ -374,7 +374,7 @@ describe "ArchivesSpace user interface" do
     it "changing Direct Order updates Sort Name" do
       $driver.find_element(:link => "Edit").click
 
-      $driver.find_element(:id => "agent_names__0__name_order_").select_option("inverted")
+      $driver.find_element(:id => "agent_names__0__name_order_").select_option("direct")
 
       $driver.find_element(:css => "form .record-pane button[type='submit']").click
 
@@ -404,7 +404,7 @@ describe "ArchivesSpace user interface" do
       $driver.find_element(:css => '#names .subrecord-form-heading .btn').click
       $driver.find_element(:css => "form .record-pane button[type='submit']").click
 
-      $driver.find_element_with_text('//div[contains(@class, "error")]', /Primary Name - Property is required but was missing/)
+      $driver.find_element_with_text('//div[contains(@class, "error")]', /Primary Part of Name - Property is required but was missing/)
 
       $driver.clear_and_send_keys([:id, "agent_names__1__primary_name_"], "Hendrix")
       $driver.clear_and_send_keys([:id, "agent_names__1__rest_of_name_"], "Jimi")
@@ -436,7 +436,7 @@ describe "ArchivesSpace user interface" do
 
       $driver.clear_and_send_keys([:id, "agent_names__0__primary_name_"], "")
       $driver.find_element(:css => "form .record-pane button[type='submit']").click
-      $driver.find_element_with_text('//div[contains(@class, "error")]', /Primary Name - Property is required but was missing/)
+      $driver.find_element_with_text('//div[contains(@class, "error")]', /Primary Part of Name - Property is required but was missing/)
       $driver.clear_and_send_keys([:id, "agent_names__0__primary_name_"], "Hendrix")
     end
 

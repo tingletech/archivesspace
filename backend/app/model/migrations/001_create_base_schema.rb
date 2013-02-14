@@ -81,7 +81,22 @@ Sequel.migration do
       Integer :lock_version, :default => 0, :null => false
 
       String :repo_code, :null => false, :unique => true
-      String :description, :null => false
+      String :name, :null => false
+      String :org_code
+      String :parent_institution_name
+      String :address_1
+      String :address_2
+      String :city
+      String :district
+      String :country
+      String :post_code
+      String :telephone
+      String :telephone_ext
+      String :fax
+      String :email
+      String :email_signature
+      String :url
+      String :image_url
 
       Integer :hidden, :default => 0
 
@@ -1060,7 +1075,7 @@ Sequel.migration do
     end
 
     # Event relationships
-    [:accession, :resource, :archival_object].each do |record|
+    [:accession, :resource, :archival_object, :digital_object].each do |record|
       table = [MigrationUtils.shorten_table("event"),
                MigrationUtils.shorten_table(record)].sort.join("_link_").intern
 
