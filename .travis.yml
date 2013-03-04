@@ -9,20 +9,48 @@ rvm:
   # The bootstrap script installs jruby, so this setting does not matter.
   - jruby-19mode
 
+before_script:
+  - mysql -e 'create database archivesspace default character set utf8;'
+
 jdk:
   - oraclejdk7
 
 branches:
   only:
     - master
+    - travis-mysql
+
+#     exec("java", "-Xmx2g", "-XX:MaxPermSize=512M",
+#             "-Daspace-test-suite=true",
+#             "-Daspace.config.db_url=" . $db_url,
+#             "-Dfile.encoding=UTF-8",
+#             "-Daspace.config.data_directory=$test_dir",
+#             "-Daspace.config.backend_url=http://localhost:${backend_port}",
+#             "-Daspace.config.frontend_url=http://localhost:${frontend_port}",
+#             "-jar", "$base/archivesspace.jar", $frontend_port, $backend_port);
 
 script:
   - build/run bootstrap
+  - build/run dist
+  # crank up the mysql server in the background
+  # set up to run test on mysql
+  - export ASPACE_FRONTEND_URL=http://localhost:3000
+  - export ASPACE_BACKEND_URL=http://localhost:4000 
+  - export JAVA_OPTS="-Daspace.config.solr_url=http://localhost:5000/"
+  - java -Xmx2g -XX:MaxPermSize=512M -Daspace.config.backend_url=$ASPACE_BACKEND_URL -Daspace.config.frontend_url -jar archivesspace.jar 3000 4000 5000 > /dev/null 2>&1 & 
+  # https://gist.github.com/tingletech/2e62e088126913a36cdc#file-migrate-pl-L103
+  # run the tests once on the embedded db
   - build/run backend:test
   - build/run backend:integration
   - build/run common:test
-  - build/run dist
+  - curl -v -X POST http://localhost:4000/setup/update_schema
   - xvfb-run --server-args="-screen 0 1024x768x24" ./build/run selenium:test
+  - xvfb-run --server-args="-screen 0 1024x768x24" ./build/run selenium:public:test 
+  # run the tests a second time on the mysql db
+  - build/run backend:test
+  - build/run backend:integration
+  - xvfb-run --server-args="-screen 0 1024x768x24" ./build/run selenium:test
+  - xvfb-run --server-args="-screen 0 1024x768x24" ./build/run selenium:public:test 
 
 notifications:
   irc: "irc.freenode.org#archivesspace"
