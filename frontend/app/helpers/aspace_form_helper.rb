@@ -2,9 +2,12 @@ module AspaceFormHelper
   class FormContext
 
     def initialize(name, values_from, parent)
+
+      values = values_from.is_a?(JSONModelType) ? values_from.to_hash(true) : values_from
+
       @forms = Object.new
       @parent = parent
-      @context = [[name, values_from]]
+      @context = [[name, values]]
       @path_to_i18n_map = {}
 
       class << @forms
@@ -14,6 +17,11 @@ module AspaceFormHelper
         include ActionView::Helpers::FormOptionsHelper
       end
 
+    end
+
+
+    def h(str)
+      ERB::Util.html_escape(str)
     end
 
 
@@ -40,7 +48,7 @@ module AspaceFormHelper
       objects.each_with_index do |object, idx|
         push(set_index(context_name, idx), object) do
           result << "<li class=\"subrecord-form-wrapper\" data-index=\"#{idx}\" data-object-name=\"#{context_name.gsub(/\[\]/,"").singularize}\">"
-          result << hidden_input("lock_version")
+          result << hidden_input("lock_version") if obj.respond_to?(:has_key?) && obj.has_key?("lock_version")
           result << @parent.capture(object, &block)
           result << "</li>"
         end
@@ -106,17 +114,16 @@ module AspaceFormHelper
       "#{names.first}#{path}"
     end
 
-    def parent_context
-      form_top
+
+    def help_path_for(name)
+      names = @context.map(&:first)
+      return "#{names[-1].to_s.gsub(/\[.*\]/, "").singularize}_#{name}" if names.length > 0
+      name
     end
 
-    # Sometimes the subrecord form builder needs to get a resolved 
-    # version of the subrecord data from the parent (this was made to 
-    # support subjects).
-    def resolved_obj
-        @context[-2].last['resolved'][@context.last[0].gsub(/\[([0-9])\]$/, "")][$1.to_i]
-      rescue 
-        nil
+
+    def parent_context
+      form_top
     end
 
     def obj
@@ -170,7 +177,6 @@ module AspaceFormHelper
 
       name.gsub(/[\[\]]/, '_')
     end
-
 
     def label_and_textfield(name, opts = {})
       label_with_field(name, textfield(name, obj[name], opts[:field_opts] || {}), opts)
@@ -226,24 +232,55 @@ module AspaceFormHelper
 
 
     def textarea(name = nil, value = "", opts =  {})
-      @forms.text_area_tag(path(name), value,  {:id => id_for(name), :rows => 3}.merge(opts))
+      options = {:id => id_for(name), :rows => 3}
+
+      placeholder = I18n.t("#{i18n_for(name)}_placeholder", :default => '')
+      options[:placeholder] = placeholder if not placeholder.empty?
+
+      @forms.text_area_tag(path(name), h(value),  options.merge(opts))
     end
 
 
     def textfield(name = nil, value = "", opts =  {})
-      @forms.tag("input", {:id => id_for(name), :type => "text", :value => value, :name => path(name)}.merge(opts),
+      options = {:id => id_for(name), :type => "text", :value => h(value), :name => path(name)}
+
+      placeholder = I18n.t("#{i18n_for(name)}_placeholder", :default => '')
+      options[:placeholder] = placeholder if not placeholder.empty?
+
+      value = @forms.tag("input", options.merge(opts),
                  false, false)
+
+      if opts[:automatable]
+        by_default = default_for("#{name}_auto_generate") || false
+        value << "<label>".html_safe
+        value << checkbox("#{name}_auto_generate", {
+          :class => "automate-field-toggle", :display_text_when_checked => I18n.t("states.auto_generated")
+          }, by_default, false)
+        value << "&#160;<small>".html_safe
+        value << I18n.t("actions.automate")
+        value << "</small></label>".html_safe
+      end
+
+      value
     end
 
 
     def password(name = nil, value = "", opts =  {})
-      @forms.tag("input", {:id => id_for(name), :type => "password", :value => value, :name => path(name)}.merge(opts),
+      @forms.tag("input", {:id => id_for(name), :type => "password", :value => h(value), :name => path(name)}.merge(opts),
                  false, false)
     end
 
     def hidden_input(name, value = nil)
       value = obj[name] if value.nil?
-      @forms.tag("input", {:id => id_for(name), :type => "hidden", :value => value, :name => path(name)},
+
+      full_name = path(name)
+
+      if value && value.is_a?(Hash) && value.has_key?('ref')
+        full_name += '[ref]'
+        value = value['ref']
+      end
+
+      @forms.tag("input", {:id => id_for(name), :type => "hidden", :value => h(value), :name => full_name},
                  false, false)
     end
 
@@ -269,11 +306,24 @@ module AspaceFormHelper
     end
 
     def label(name, opts = {})
-      "<label class=\"control-label\" for=\"#{id_for(name)}\">#{I18n.t(i18n_for(name))}</label>".html_safe
+      options = {:class => "control-label", :for => id_for(name)}
+
+      tooltip = I18n.t("#{i18n_for(name)}_tooltip", :default => '')
+      if not tooltip.empty?
+        options[:title] = tooltip
+        options["data-placement"] = "bottom"
+        options["data-html"] = true
+        options["data-delay"] = 500
+        options["data-trigger"] = "manual"
+        options["data-template"] = '<div class="tooltip archivesspace-help"><div class="tooltip-arrow"></div><div class="tooltip-inner"></div></div>'
+        options[:class] += " has-tooltip"
+      end 
+
+      @forms.content_tag(:label, I18n.t(i18n_for(name)), options.merge(opts || {}))
     end
 
     def checkbox(name, opts = {}, default = true, force_checked = false)
-      options = {:id => "#{id_for(name)}", :type => "checkbox", :name => path(name), :value => "1"}
+      options = {:id => "#{id_for(name)}", :type => "checkbox", :name => path(name), :value => 1}
       options[:checked] = "checked" if force_checked or (obj[name] === true) or (obj[name] === "true") or (obj[name].nil? and default)
 
       @forms.tag("input", options.merge(opts), false, false)
@@ -335,7 +385,15 @@ module AspaceFormHelper
 
     def select(name, options, opts = {})
       return nil if obj[name].blank?
-      I18n.t("#{i18n_for(name)}_#{obj[name]}", :default => obj[name])
+
+      # Attempt a match in the options to give dynamic enums a chance.
+      match = options.find {|label, value| value == obj[name]}
+
+      if match
+        match[0]
+      else
+        I18n.t("#{i18n_for(name)}_#{obj[name]}", :default => obj[name])
+      end
     end
 
     def textfield(name = nil, value = "", opts =  {})
@@ -434,8 +492,17 @@ module AspaceFormHelper
     def options_for(context, property, add_empty_options = false, opts = {})
       options = []
       options.push(["",""]) if add_empty_options
+
+      defn = jsonmodel_schema_definition(property)
+
       jsonmodel_enum_for(property).each do |v|
-        i18n_path = opts.has_key?(:i18n_prefix) ? "#{opts[:i18n_prefix]}.#{v}" : context.i18n_for("#{Array(property).last}_#{v}")
+        if opts.has_key?(:i18n_prefix)
+          i18n_path =  "#{opts[:i18n_prefix]}.#{v}"
+        elsif defn.has_key?('dynamic_enum')
+          i18n_path = "enumerations.#{defn['dynamic_enum']}.#{v}"
+        else
+          i18n_path = context.i18n_for("#{Array(property).last}_#{v}")
+        end
 
         options.push([I18n.t(i18n_path, :default => v), v])
       end
@@ -446,7 +513,15 @@ module AspaceFormHelper
     private
 
     def jsonmodel_enum_for(property)
-      jsonmodel_schema_definition(property)["enum"]
+      defn = jsonmodel_schema_definition(property)
+
+      if defn.has_key?('enum')
+        defn["enum"]
+      elsif defn.has_key?('dynamic_enum')
+        JSONModel.enum_values(defn['dynamic_enum'])
+      else
+        raise "No enum found for #{property}"
+      end
     end
 
 
@@ -526,7 +601,7 @@ module AspaceFormHelper
     s
   end
 
-  PROPERTIES_TO_EXCLUDE_FROM_READ_ONLY_VIEW = ["jsonmodel_type", "lock_version", "resolved", "uri"]
+  PROPERTIES_TO_EXCLUDE_FROM_READ_ONLY_VIEW = ["jsonmodel_type", "lock_version", "_resolved", "uri", "ref"]
 
   def read_only_view(hash, opts = {})
     jsonmodel_type = hash["jsonmodel_type"]
@@ -536,15 +611,14 @@ module AspaceFormHelper
     hash.reject {|k,v| PROPERTIES_TO_EXCLUDE_FROM_READ_ONLY_VIEW.include?(k)}.each do |property, value|
 
       if schema and schema["properties"].has_key?(property)
-        if schema["properties"][property].has_key?("enum")
-          value = I18n.t("#{jsonmodel_type.to_s}.#{property}_#{value}", value)
+        if (schema["properties"][property].has_key?('dynamic_enum'))
+          value = I18n.t("enumerations.#{schema["properties"][property]["dynamic_enum"]}.#{value}", :default => value)
+        elsif schema["properties"][property].has_key?("enum")
+          value = I18n.t("#{jsonmodel_type.to_s}.#{property}_#{value}", :default => value)
         elsif schema["properties"][property]["type"] === "boolean"
           value = value === true ? "True" : "False"
         elsif schema["properties"][property]["type"] === "array"
           # this view doesn't support arrays
-          next
-        elsif hash.has_key?("resolved") and hash["resolved"].has_key?(property)
-          # don't display a resolved attribute... as it's probably just a URI
           next
         elsif value.kind_of? Hash
           # can't display an object either

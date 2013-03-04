@@ -30,30 +30,30 @@ class CommonIndexer
 
   def configure_doc_rules
     add_document_prepare_hook {|doc, record|
-      if doc[:primary_type] == 'archival_object'
+      if doc['primary_type'] == 'archival_object'
         doc['resource'] = record['record']['resource']
       end
     }
 
     add_document_prepare_hook {|doc, record|
-      if doc[:primary_type] == 'digital_object_component'
+      if doc['primary_type'] == 'digital_object_component'
         doc['digital_object'] = record['record']['digital_object']
       end
     }
 
     add_document_prepare_hook {|doc, record|
-      if ['subject', 'location'].include?(doc[:primary_type])
+      if ['agent_person', 'agent_family', 'agent_software', 'agent_corporate_entity'].include?(doc['primary_type'])
         doc['json'] = record['record'].to_json
+        doc['title'] = record['record']['names'][0]['sort_name']
+
+        # Assign the additional type of 'agent'
+        doc['types'] << 'agent'
       end
     }
 
     add_document_prepare_hook {|doc, record|
-      if ['agent_person', 'agent_family', 'agent_software', 'agent_corporate_entity'].include?(doc[:primary_type])
-        doc['json'] = record['record'].to_json
-        doc[:title] = record['record']['names'][0]['sort_name']
-
-        # Assign the additional type of 'agent'
-        doc[:types] << 'agent'
+      doc['external_id'] = Array(record['record']['external_ids']).map do |eid|
+        eid['external_id']
       end
     }
   end
@@ -116,6 +116,22 @@ class CommonIndexer
   end
 
 
+  def delete_records(records)
+    return if records.empty?
+
+    req = Net::HTTP::Post.new("/update")
+    req['Content-Type'] = 'application/json'
+    req.body = {:delete => records.map {|id| {"id" => id}}}.to_json
+
+    response = do_http_request(solr_url, req)
+    puts "Deleted #{records.length} documents: #{response}"
+
+    if response.code != '200'
+      raise "Error when deleting records: #{response.body}"
+    end
+  end
+
+
   def index_records(records)
     batch = []
 
@@ -131,13 +147,13 @@ class CommonIndexer
 
       doc = {}
 
-      doc[:id] = uri
-      doc[:title] = values['title']
-      doc[:primary_type] = record_type
-      doc[:types] = [record_type]
-      doc[:fullrecord] = values.to_json(:max_nesting => false)
-      doc[:suppressed] = values['suppressed'].to_s
-      doc[:repository] = get_record_scope(uri)
+      doc['id'] = uri
+      doc['title'] = values['title']
+      doc['primary_type'] = record_type
+      doc['types'] = [record_type]
+      doc['fullrecord'] = values.to_json(:max_nesting => false)
+      doc['suppressed'] = values['suppressed'].to_s
+      doc['repository'] = get_record_scope(uri)
 
       @document_prepare_hooks.each do |hook|
         hook.call(doc, record)

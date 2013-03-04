@@ -7,7 +7,7 @@ class ArchivesSpaceService
       Repository.unrestrict_primary_key
       begin
         Repository.create(:repo_code => Group.GLOBAL,
-                          :description => "Global repository",
+                          :name => "Global repository",
                           :hidden => 1)
       ensure
         Repository.restrict_primary_key
@@ -36,8 +36,16 @@ class ArchivesSpaceService
 
 
     ## Standard permissions
+    Permission.define("system_config",
+                      "The ability to manage system configuration options",
+                      :level => "global")
+
     Permission.define("manage_users",
                       "The ability to manage user accounts while logged in",
+                      :level => "global")
+
+    Permission.define("view_all_records",
+                      "The ability to view any record in the system",
                       :level => "global")
 
     Permission.define("create_repository",
@@ -52,8 +60,30 @@ class ArchivesSpaceService
                       "The ability to manage a given repository",
                       :level => "repository")
 
-    Permission.define("update_repository",
-                      "The ability to create and modify records in a given repository",
+    Permission.define("update_location_record",
+                      "The ability to create and modify location records in a given repository",
+                      :level => "repository")
+
+    # This doesn't really make sense since subjects aren't repository-scoped.  Needs revisiting.
+    Permission.define("update_subject_record",
+                      "The ability to create and modify subject records",
+                      :level => "repository")
+
+    # This doesn't really make sense since agents aren't repository-scoped.  Needs revisiting.
+    Permission.define("update_agent_record",
+                      "The ability to create and modify agent records",
+                      :level => "repository")
+
+    Permission.define("update_archival_record",
+                      "The ability to create and modify the major archival record types: accessions/resources/digital objects/components/collection management/events",
+                      :level => "repository")
+
+    Permission.define("suppress_archival_record",
+                      "The ability to suppress the major archival record types: accessions/resources/digital objects/components/collection management/events",
+                      :level => "repository")
+
+    Permission.define("delete_archival_record",
+                      "The ability to delete the major archival record types: accessions/resources/digital objects/components/collection management/events",
                       :level => "repository")
 
     Permission.define("view_suppressed",
@@ -94,6 +124,33 @@ class ArchivesSpaceService
   end
 
 
+  def self.create_public_user
+
+    # Create the public_anonymous user
+    if User[:username => User.PUBLIC_USERNAME].nil?
+      User.create_from_json(JSONModel(:user).from_hash(:username => User.PUBLIC_USERNAME,
+                                                       :name => "Public Interface Anonymous"),
+                            :source => "local")
+    end
+
+    DBAuth.set_password(User.PUBLIC_USERNAME, AppConfig[:public_user_secret])
+
+    global_repo = Repository[:repo_code => Group.GLOBAL]
+
+    RequestContext.open(:repo_id => global_repo.id) do
+      if Group[:group_code => Group.PUBLIC_GROUP_CODE].nil?
+        created_group = Group.create_from_json(JSONModel(:group).from_hash(:group_code => Group.PUBLIC_GROUP_CODE,
+                                                                           :description => "Public Anonymous"))
+        created_group.add_user(User[:username => User.PUBLIC_USERNAME])
+
+        created_group.grant("view_repository")
+      end
+    end
+
+  end
+
+
   set_up_base_permissions
   create_search_user
+  create_public_user
 end

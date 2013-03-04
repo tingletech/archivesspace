@@ -1,14 +1,14 @@
 class CollectionManagementRecordsController < ApplicationController
   skip_before_filter :unauthorised_access, :only => [:index, :show, :new, :edit, :create, :update]
-  before_filter :user_needs_to_be_a_viewer, :only => [:index, :show]
-  before_filter :user_needs_to_be_an_archivist, :only => [:new, :edit, :create, :update]
+  before_filter(:only => [:index, :show]) {|c| user_must_have("view_repository")}
+  before_filter(:only => [:new, :edit, :create, :update]) {|c| user_must_have("update_archival_record")}
 
   def index
     @search_data = JSONModel(:collection_management).all(:page => 1)
   end
 
   def show
-    @collection_management = JSONModel(:collection_management).find(params[:id], "resolve[]" => ["ref"])
+    @collection_management = JSONModel(:collection_management).find(params[:id], "resolve[]" => ["linked_records"])
   end
 
   def new
@@ -17,7 +17,7 @@ class CollectionManagementRecordsController < ApplicationController
   end
 
   def edit
-    @collection_management = JSONModel(:collection_management).find(params[:id], "resolve[]" => ["ref"])
+    @collection_management = JSONModel(:collection_management).find(params[:id], "resolve[]" => ["linked_records"])
   end
 
   def create
@@ -26,7 +26,7 @@ class CollectionManagementRecordsController < ApplicationController
                   render :action => :new
                 },
                 :on_valid => ->(id){
-                  flash[:success] = "Collection Management Record Saved"
+                  flash[:success] = I18n.t("collection_management._html.messages.created")
                   return redirect_to :controller => :collection_management_records, :action => :new if params.has_key?(:plus_one)
 
                   redirect_to :controller => :collection_management_records, :action => :index, :id => id
@@ -38,7 +38,7 @@ class CollectionManagementRecordsController < ApplicationController
                 :obj => JSONModel(:collection_management).find(params[:id]),
                 :on_invalid => ->(){ render :action => :edit },
                 :on_valid => ->(id){
-                  flash[:success] = "Collection Management Record Saved"
+                  flash[:success] = I18n.t("collection_management._html.messages.updated")
                   redirect_to :controller => :collection_management_records, :action => :index
                 })
   end

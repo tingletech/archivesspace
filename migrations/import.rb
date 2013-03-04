@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 require 'optparse'
-require File.join(File.dirname(__FILE__), "lib", "bootstrap")
+require_relative "config/config"
 
 options = {:dry => false, 
            :debug => false,
@@ -51,6 +51,15 @@ end
 
 optparse.parse!
 
+$dry_mode = true if options[:dry]
+
+if $dry_mode
+  require 'mocha/setup'
+  include Mocha::API
+end
+
+require File.join(File.dirname(__FILE__), "lib", "bootstrap")
+
 if options[:list]
   ASpaceImport::Importer.list
   exit
@@ -58,7 +67,7 @@ end
 
 if options[:importer]
   i = ASpaceImport::Importer.create_importer(options)
-  i.run
+  i.run_safe
   puts i.report
 end
 

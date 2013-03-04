@@ -1,23 +1,22 @@
-<%= setup_context :object => @subject, :title => @subject.display_string %>
+<%= setup_context :object => @subject, :title => @subject.title %>
 
 <div class="row-fluid">
    <div class="span3">
       <%= render :partial => "sidebar" %>
    </div>
-   <div class="span9 record-pane">
-     <div class="btn-group" style="float: right">
-       <% if user_can?('update_repository') %>
-         <%= link_to I18n.t("actions.edit"), {:controller => :subjects, :action => :edit, :id => @subject.id}, :class => "btn btn-small" %>
-       <% end %>
-     </div>
+   <div class="span9">
+    <%= render :partial => "toolbar" %>
+    <div class="record-pane">
+     <%= readonly_context :subject, @subject do |readonly| %>
+      <h2><%= @subject.title %>  <span class="label label-info"><%= I18n.t("subject._html.singular") %></span></h2>
 
-     <%= readonly_context :subject, @subject.to_hash do |readonly| %>
-      <h2><%= @subject.display_string %>  <span class="label label-info"><%= I18n.t("subject._html.singular") %></span></h2>
+      <%= render :partial => "shared/flash_messages" %>
 
       <section id="basic_information">
         <h3><%= I18n.t("subject._html.section.basic_information") %></h3>
 
         <%= readonly.label_and_textfield "ref_id" %>
+        <%= readonly.label_and_select "source", readonly.possible_options_for("source", true) %>
       </section>
     
       <section id="terms" class="subrecord-form-dummy">
@@ -43,4 +42,5 @@
       <% end %>
     <% end %>
    </div>
+  </div>
 </div>

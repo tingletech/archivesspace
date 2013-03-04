@@ -1,7 +1,7 @@
 class AgentsController < ApplicationController
   skip_before_filter :unauthorised_access, :only => [:index, :show, :new, :edit, :create, :update]
-  before_filter :user_needs_to_be_a_viewer, :only => [:index, :show]
-  before_filter :user_needs_to_be_an_archivist, :only => [:new, :edit, :create, :update]
+  before_filter(:only => [:index, :show]) {|c| user_must_have("view_repository")}
+  before_filter(:only => [:new, :edit, :create, :update]) {|c| user_must_have("update_agent_record")}
 
   before_filter :assign_types
 
@@ -33,9 +33,8 @@ class AgentsController < ApplicationController
                 },
                 :on_valid => ->(id){
                   return render :json => @agent.to_hash if inline?
-                  flash[:success] = "Agent Saved"
-                  return redirect_to :controller => :agents, :action => :new, :type => @agent_type if params.has_key?(:plus_one)
-                  redirect_to :controller => :agents, :action => :show, :id => id, :type => @agent_type
+                  return redirect_to({:controller => :agents, :action => :new, :type => @agent_type}, :flash => {:success => I18n.t("agent._html.messages.created")}) if params.has_key?(:plus_one)
+                  redirect_to({:controller => :agents, :action => :show, :id => id, :type => @agent_type}, :flash => {:success => I18n.t("agent._html.messages.created")})
                 })
   end
 
@@ -52,6 +51,7 @@ class AgentsController < ApplicationController
                   return render :action => :edit
                 },
                 :on_valid => ->(id){
+                  flash[:success] = I18n.t("agent._html.messages.updated")
                   redirect_to :controller => :agents, :action => :show, :id => id, :type => @agent_type
                 })
   end

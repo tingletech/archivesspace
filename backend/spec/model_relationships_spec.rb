@@ -6,34 +6,40 @@ describe 'Relationships' do
 
   before(:each) do
     ## Database setup
-    DB.open do |db|
-      [:apple, :banana].each do |table|
-        db.create_table table do
-          primary_key :id
-          String :name
-          Integer :lock_version, :default => 0
-          Date :create_time
-          Date :last_modified
-        end
-      end
-
-      db.create_table :app_fruit_salad_ban do
+    [:apple, :banana].each do |table|
+      $testdb.create_table table do
         primary_key :id
-        String :sauce
-        Integer :banana_id
-        Integer :apple_id
-        Integer :aspace_relationship_position
+        String :name
+        Integer :lock_version, :default => 0
+        Date :create_time
+        Date :last_modified
       end
+    end
+
+    $testdb.create_table :app_fruit_salad_ban do
+      primary_key :id
+      String :sauce
+      Integer :banana_id
+      Integer :apple_id
+      Integer :aspace_relationship_position
+      DateTime :last_modified, :null => false
+    end
+
+    $testdb.create_table :app_friends_ban do
+      primary_key :id
+      Integer :banana_id
+      Integer :apple_id
+      Integer :aspace_relationship_position
+      DateTime :last_modified, :null => false
     end
   end
 
 
   after(:each) do
-    DB.open do |db|
-      db.drop_table(:apple)
-      db.drop_table(:banana)
-      db.drop_table(:app_fruit_salad_ban)
-    end
+    $testdb.drop_table(:apple)
+    $testdb.drop_table(:banana)
+    $testdb.drop_table(:app_fruit_salad_ban)
+    $testdb.drop_table(:app_friends_ban)
   end
 
 
@@ -50,6 +56,7 @@ describe 'Relationships' do
             "type" => "array",
             "items" => {
               "type" => "object",
+              "subtype" => "ref",
               "properties" => {
                 "ref" => {"type" => [{"type" => "JSONModel(:banana) uri"}]}
               }
@@ -70,8 +77,19 @@ describe 'Relationships' do
             "type" => "array",
             "items" => {
               "type" => "object",
+              "subtype" => "ref",
               "properties" => {
                 "ref" => {"type" => [{"type" => "JSONModel(:apple) uri"}]}
+              }
+            }
+          },
+          "friends" => {
+            "type" => "array",
+            "items" => {
+              "type" => "object",
+              "subtype" => "ref",
+              "properties" => {
+                "ref" => {"type" => "JSONModel(:apple) uri"}
               }
             }
           }
@@ -85,6 +103,7 @@ describe 'Relationships' do
       include Relationships
       set_model_scope :global
       corresponds_to JSONModel(:apple)
+      clear_relationships
     end
 
 
@@ -94,10 +113,16 @@ describe 'Relationships' do
       set_model_scope :global
       corresponds_to JSONModel(:banana)
 
+      clear_relationships
       define_relationship(:name => :fruit_salad,
                           :json_property => 'apples',
                           :contains_references_to_types => proc {[Apple]})
 
+      # Do bananas have friends?  I don't know.  But for the sake of this test
+      # they do.
+      define_relationship(:name => :friends,
+                          :json_property => 'friends',
+                          :contains_references_to_types => proc {[Apple]})
     end
 
 
@@ -155,6 +180,60 @@ describe 'Relationships' do
     # Now the banana has no apples listed
     banana.refresh
     Banana.to_jsonmodel(banana).apples.should eq([])
+  end
+
+
+  it "deletes relationships if one side of the relationship is deleted" do
+    apple = Apple.create_from_json(JSONModel(:apple).new(:name => "granny smith"))
+    banana_json = JSONModel(:banana).new(:apples => [{
+                                                       :ref => apple.uri,
+                                                       :sauce => "yogurt"
+                                                     }])
+    banana = Banana.create_from_json(banana_json)
+
+
+    # Now you see it
+    banana.my_relationships(:fruit_salad).count.should_not be(0)
+
+    Apple.prepare_for_deletion(Apple.filter(:id => apple.id))
+
+    # Now you don't
+    banana.reload
+    banana.my_relationships(:fruit_salad).count.should eq(0)
+  end
+
+
+  it "stores a last modified time on each relationship" do
+    apple = Apple.create_from_json(JSONModel(:apple).new(:name => "granny smith"))
+    banana_json = JSONModel(:banana).new(:apples => [{
+                                                       :ref => apple.uri,
+                                                       :sauce => "yogurt"
+                                                     }])
+    time = Time.now.to_f
+    banana = Banana.create_from_json(banana_json)
+
+    banana.my_relationships(:fruit_salad)[0][0][:last_modified].to_f.should be >= time
+  end
+
+
+  it "blows up if you link to a non-existent URI" do
+    expect {
+    Apple.create_from_json(JSONModel(:apple).new(:name => "granny smith",
+                                                 :bananas => [{
+                                                                :ref => "/bananas/12345",
+                                                                :sauce => "rasberry"
+                                                              }]))
+    }.to raise_error(ReferenceError)
+  end
+
+  it "deletes reciprocal relationship instances when deleting a record" do
+    apple = Apple.create_from_json(JSONModel(:apple).new(:name => "granny smith"))
+    banana = Banana.create_from_json(JSONModel(:banana).new(:friends => [{:ref => apple.uri}]))
+
+    banana.linked_records(:friends).count.should eq(1)
+    apple.delete
+    banana.reload
+    banana.linked_records(:friends).count.should eq(0)
   end
 
 end

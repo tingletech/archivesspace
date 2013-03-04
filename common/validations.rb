@@ -39,11 +39,20 @@ module JSONModel::Validations
 
     errors
   end
+  
+  def self.check_name(hash)
+    errors = []
+    errors << ["sort_name", "Property is required but was missing"] if hash["sort_name"].nil? and !hash["sort_name_auto_generate"]
+    errors
+  end
 
   [:name_person, :name_family, :name_corporate_entity, :name_software].each do |type|
     if JSONModel(type)
       JSONModel(type).add_validation("#{type}_check_source") do |hash|
         check_source(hash)
+      end
+      JSONModel(type).add_validation("#{type}_check_name") do |hash|
+        check_name(hash)
       end
     end
   end
@@ -61,6 +70,19 @@ module JSONModel::Validations
       errors << ["end", "is required"] if hash["end"].nil?
       errors << ["begin_time", "is required"] if not hash["end_time"].nil? and hash["begin_time"].nil?
       errors << ["end_time", "is required"] if not hash["begin_time"].nil? and hash["end_time"].nil?
+
+      # check that end isn't before begin
+      # need to expand to full date+time - choosing to use rfc3339, though just doing a string compare
+      bt = "#{hash["begin"]}"
+      2.times { bt << '-01' if bt !~ /\-\d\d\-\d\d/ }
+      bt << "T#{hash["begin_time"] || '00:00:00'}+00:00"
+
+      et = "#{hash["end"]}"
+      et << '-12' if et !~ /\-\d\d/
+      et << '-31' if et !~ /\-\d\d\-\d\d/
+      et << "T#{hash["end_time"] || '23:59:59'}+00:00"
+
+      errors << ["end", "must not be before begin"] if et < bt
     end
 
     errors
@@ -140,6 +162,26 @@ module JSONModel::Validations
   end
 
 
+  def self.check_instance(hash)
+    errors = []
+
+    if hash["instance_type"] === "digital_object"
+      errors << ["digital_object", "is required"] if hash["digital_object"].nil?
+    elsif hash["instance_type"]
+      errors << ["container", "is required"] if hash["container"].nil?
+    end
+
+    errors
+  end
+
+
+  if JSONModel(:instance)
+    JSONModel(:instance).add_validation("check_instance") do |hash|
+      check_instance(hash)
+    end
+  end
+
+
   def self.check_collection_management(hash)
     errors = []
 
@@ -153,28 +195,15 @@ module JSONModel::Validations
 
   def self.check_collection_management_linked_records(hash)
     errors = []
-    err = false
 
-    if !hash.has_key?("linked_records")
-      err = true
-    elsif !hash["linked_records"].is_a? Array
-      err = true
-    elsif hash["linked_records"].length == 0
-      err = true
-    elsif !hash["linked_records"].first.has_key?("ref")
-      err = true
-    elsif hash["linked_records"].length > 1
+    if hash["linked_records"].length > 1
       if hash["linked_records"].any? { |lr|
           ref = JSONModel.parse_reference(lr["ref"])
           ref.nil? || ref[:type] != "digital_object"
         }
-        err = true
+        errors << ["linked_records",
+                   "must link to one accession, one resource, or one or more digital objects"]
       end
-    end
-
-    if err
-      errors << ["linked_records",
-                 "must link to one accession, one resource, or one or more digital objects"]
     end
 
     errors
@@ -215,6 +244,17 @@ module JSONModel::Validations
     if hash["level"] === "otherlevel"
       errors << ["other_level", "is required"] if hash["other_level"].nil?
     end
+    
+    if hash.has_key?("title_auto_generate") && hash["title_auto_generate"]
+
+      if !hash.has_key?("dates")
+        errors << ["dates", "one or more are required in order to generate a title"]
+      end
+    else
+      if !hash.has_key?("title") || hash["title"].empty?
+        errors << ["title", "must not be an empty string"]
+      end
+    end
 
     errors
   end
@@ -225,4 +265,5 @@ module JSONModel::Validations
       check_archival_object(hash)
     end
   end
+
 end

@@ -3,41 +3,44 @@ module RESTHelpers
   include JSONModel
 
 
-  def resolve_reference(uri)
-    if uri.is_a? Hash
-      uri = uri['ref']
+  def resolve_reference(reference)
+    if !reference.is_a? Hash
+      raise "Argument must be a {'ref' => '/uri'} hash (not: #{reference})"
     end
 
-    if !JSONModel.parse_reference(uri).nil?
-      JSON.parse(redirect_internal(uri)[2].join(""), :max_nesting => false)
+    if JSONModel.parse_reference(reference['ref'])
+      record = redirect_internal(reference['ref'])[2].body.join("")
+      reference.clone.merge('_resolved' => JSON.parse(record, :max_nesting => false))
     else
-      uri
+      raise "Couldn't parse ref: #{reference.inspect}"
     end
   end
 
 
   def resolve_references(value, properties_to_resolve)
+    value = value.to_hash if value.respond_to?(:to_hash)
+
     # If ASPACE_REENTRANT is set, don't resolve anything or we risk creating loops.
     return value if (properties_to_resolve.nil? || env['ASPACE_REENTRANT'])
 
     if value.is_a? Hash
-      resolved = {}
+      result = value.clone
 
       value.each do |k, v|
         if properties_to_resolve.include?(k)
-          resolved[k] = (v.is_a? Array) ? v.map {|elt| resolve_reference(elt)} : resolve_reference(v)
+          result[k] = (v.is_a? Array) ? v.map {|elt| resolve_reference(elt)} : resolve_reference(v)
         else
-          resolve_references(v, properties_to_resolve)
+          result[k] = resolve_references(v, properties_to_resolve)
         end
       end
 
-      value['resolved'] = resolved if !resolved.empty?
+      result
 
     elsif value.is_a? Array
-      value.each {|elt| resolve_references(elt, properties_to_resolve)}
+      value.map {|elt| resolve_references(elt, properties_to_resolve)}
+    else
+      value
     end
-
-    value
   end
 
 
@@ -75,6 +78,10 @@ module RESTHelpers
       modified_response('Updated', *opts)
     end
 
+    def deleted_response(id)
+      json_response({:status => 'Deleted', :id => id})
+    end
+
 
     def suppressed_response(id, state)
       json_response({:status => 'Suppressed', :id => id, :suppressed_state => state})
@@ -105,6 +112,7 @@ module RESTHelpers
       @method = method
       @uri = ""
       @description = "-- No description provided --"
+      @permissions = []
       @preconditions = []
       @required_params = []
       @returns = []
@@ -144,32 +152,45 @@ module RESTHelpers
 
     def self.get(uri); self.method(:get).uri(uri); end
     def self.post(uri); self.method(:post).uri(uri); end
+    def self.delete(uri); self.method(:delete).uri(uri); end
     def self.method(method); Endpoint.new(method); end
 
     def uri(uri); @uri = uri; self; end
     def description(description); @description = description; self; end
     def preconditions(*preconditions); @preconditions += preconditions; self; end
 
-    def params(*params)
-      @required_params = params.map do |p|
-        @@param_types[p[1]] ? [p[0], @@param_types[p[1]]].flatten : p
-      end
 
-      # A special case for repo_id since it's so prevalent: if the repo_id is
-      # provided, add a check to make sure the requesting user has permission
-      # to view this repository
-      if @required_params.any?{|param| param.first == 'repo_id'}
-        if @method == :get
-          @preconditions << proc { |request| current_user.can?(:view_repository) }
-        elsif @method == :post
-          @preconditions << proc { |request| current_user.can?(:update_repository) }
-        end
+    def permissions(permissions)
+      @has_permissions = true
+
+      permissions.each do |permission|
+        @preconditions << proc { |request| current_user.can?(permission) }
       end
 
       self
     end
 
+
+    # Just some scaffolding until everything has permissions specified
+    def nopermissionsyet
+      @has_permissions = true
+      Log.warn("No permissions defined for #{@method.upcase} #{@uri}")
+      self
+    end
+
+
+    def params(*params)
+      @required_params = params.map do |p|
+        @@param_types[p[1]] ? [p[0], @@param_types[p[1]]].flatten : p
+      end
+
+      self
+    end
+
+
     def returns(*returns, &block)
+      raise "No .permissions declaration for endpoint #{@method.to_s.upcase} #{@uri}" if !@has_permissions
+
       @returns = returns.map { |r| r[1] = @@return_types[r[1]] || r[1]; r }
 
       @@endpoints << self
@@ -207,12 +228,15 @@ module RESTHelpers
 
           result = DB.open do
 
+            RequestContext.put(:current_username, current_user.username)
+
             # If the current user is a manager, show them suppressed records
             # too.
             if RequestContext.get(:repo_id)
               RequestContext.put(:enforce_suppression,
                                  !(current_user.can?(:manage_repository) ||
-                                   current_user.can?(:view_suppressed)))
+                                   current_user.can?(:view_suppressed) ||
+                                   current_user.can?(:suppress_archival_record)))
             end
 
             self.instance_eval &block

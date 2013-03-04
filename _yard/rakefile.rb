@@ -5,6 +5,12 @@ namespace :doc do
     puts "Generating YARD documentation"
     system(File.join("..", "build", "run"), "doc:yardoc")
   end
+  
+  # desc "Generate the supplementary txt files"
+  # task :yard do
+  #   puts "Generating txt versions of the schemas"
+  #   system(File.join("..", "build", "run"), "doc:yardoc -f txt")
+  # end
 
   desc "Create the API.md file"
   task :api do
@@ -12,6 +18,8 @@ namespace :doc do
     require 'sinatra'
     require_relative '../common/jsonmodel.rb'
     require_relative '../backend/app/lib/rest.rb'
+    require_relative '../backend/app/model/backend_enum_source.rb'
+    require_relative '../backend/app/lib/logging.rb'
 
 
     class ArchivesSpaceService < Sinatra::Base
@@ -26,7 +34,7 @@ namespace :doc do
     
     @time = Time.new
 
-    JSONModel::init
+    JSONModel::init(:enum_source => BackendEnumSource)
 
     require_relative '../backend/app/lib/export'
 
@@ -64,6 +72,7 @@ namespace :doc do
   task :gen do
     Rake::Task["doc:api"].invoke
     Rake::Task["doc:yard"].invoke
+    # Rake::Task["doc:yard-txt"].invoke
     Rake::Task["doc:rename_index"].invoke
   end
   

@@ -1,9 +1,12 @@
 require_relative 'term'
 require 'digest/sha1'
+require_relative 'auto_generator'
 
 class Subject < Sequel::Model(:subject)
   include ASModel
   include ExternalDocuments
+  include ExternalIDs
+  include AutoGenerator
 
   set_model_scope :global
   corresponds_to JSONModel(:subject)
@@ -14,6 +17,17 @@ class Subject < Sequel::Model(:subject)
                     :contains_records_of_type => :term,
                     :corresponding_to_association  => :term,
                     :always_resolve => true)
+
+  auto_generate :property => :title, 
+                :generator => proc  { |json|
+                                json["terms"].map do |t|
+                                  if t.kind_of? String
+                                    Term[JSONModel(:term).id_for(t)].term
+                                  else
+                                    t["term"]
+                                  end
+                                end.join(" -- ")
+                              }
 
 
   def self.set_vocabulary(json, opts)
@@ -35,8 +49,8 @@ class Subject < Sequel::Model(:subject)
     set_vocabulary(json, opts)
     obj = super
 
-    # add a terms sha1 hash to allow for uniqueness test
-    obj.terms_sha1 = generate_terms_sha1(json)
+    obj.terms_sha1 = generate_terms_sha1(json) # add a terms sha1 hash to allow for uniqueness test
+
     obj.save
 
     obj
@@ -47,8 +61,8 @@ class Subject < Sequel::Model(:subject)
     self.class.set_vocabulary(json, opts)
     obj = super
 
-    # add a terms sha1 hash to allow for uniqueness test
-    obj.terms_sha1 = self.class.generate_terms_sha1(json)
+    obj.terms_sha1 = self.class.generate_terms_sha1(json) # add a terms sha1 hash to allow for uniqueness test
+
     obj.save
 
     obj

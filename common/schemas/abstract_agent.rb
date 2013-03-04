@@ -5,6 +5,17 @@
     "properties" => {
       "uri" => {"type" => "string", "required" => false},
 
+      "external_ids" => {
+        "type" => "array",
+        "items" => {
+          "type" => "object",
+          "properties" => {
+            "external_id" => {"type" => "string"},
+            "source" => {"type" => "string"},
+          }
+        }
+      },
+
       "agent_type" => {
         "type" => "string",
         "required" => false,
@@ -13,7 +24,7 @@
 
       "agent_contacts" => {
         "type" => "array",
-        "items" => {"type" => "JSONModel(:agent_contact) uri_or_object"}
+        "items" => {"type" => "JSONModel(:agent_contact) object"}
       },
 
       "external_documents" => {"type" => "array", "items" => {"type" => "JSONModel(:external_document) object"}},

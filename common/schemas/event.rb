@@ -6,22 +6,25 @@
     "properties" => {
       "uri" => {"type" => "string", "required" => false},
 
+      "external_ids" => {
+        "type" => "array",
+        "items" => {
+          "type" => "object",
+          "properties" => {
+            "external_id" => {"type" => "string"},
+            "source" => {"type" => "string"},
+          }
+        }
+      },
+
       "event_type" => {
         "type" => "string",
         "ifmissing" => "error",
-        "enum" => ["accession", "accumulation", "acknowledgement", "agreement received",
-                   "agreement sent", "appraisal", "assessment", "capture", "cataloging",
-                   "collection", "compression", "contribution", "custody transfer", "deaccession",
-                   "decompression", "decryption", "deletion", "digital signature validation",
-                   "fixity check", "ingestion", "message digest calculation", "migration",
-                   "normalization", "processing", "publication", "replication", "resource merge",
-                   "resource component transfer", "validation", "virus check"]
-
-
-
+        "dynamic_enum" => "event_event_type"
       },
+
       "date" => {"type" => "JSONModel(:date) object", "ifmissing" => "error"},
-      "outcome" => {"type" => "string"},
+      "outcome" => {"type" => "string", "dynamic_enum" => "event_outcome"},
       "outcome_note" => {"type" => "string"},
 
       "suppressed" => {"type" => "boolean"},
@@ -32,10 +35,11 @@
         "minItems" => 1,
         "items" => {
           "type" => "object",
+          "subtype" => "ref",
           "properties" => {
             "role" => {
               "type" => "string",
-              "enum" => ["authorizer", "executing_program", "implementer", "recipient", "transmitter", "validator"],
+              "dynamic_enum" => "linked_agent_event_roles",
               "ifmissing" => "error",
             },
 
@@ -43,7 +47,11 @@
                                  {"type" => "JSONModel(:agent_family) uri"},
                                  {"type" => "JSONModel(:agent_person) uri"},
                                  {"type" => "JSONModel(:agent_software) uri"}],
-                      "ifmissing" => "error"}
+              "ifmissing" => "error"},
+            "_resolved" => {
+              "type" => "object",
+              "readonly" => "true"
+            }
           }
         }
       },
@@ -54,21 +62,29 @@
         "minItems" => 1,
         "items" => {
           "type" => "object",
+          "subtype" => "ref",
           "properties" => {
             "role" => {
               "type" => "string",
-              "enum" => ["source", "outcome", "transfer"],
+              "dynamic_enum" => "linked_event_archival_record_roles",
               "ifmissing" => "error",
             },
-
-            "ref" => {"type" => [{"type" => "JSONModel(:accession) uri"},
-                                 {"type" => "JSONModel(:resource) uri"},
-                                 {"type" => "JSONModel(:archival_object) uri"}],
-                      "ifmissing" => "error"}}
+            "ref" => {
+              "type" => [{"type" => "JSONModel(:accession) uri"},
+                         {"type" => "JSONModel(:resource) uri"},
+                         {"type" => "JSONModel(:digital_object) uri"},
+                         {"type" => "JSONModel(:archival_object) uri"}],
+              "ifmissing" => "error"
+            },
+            "_resolved" => {
+              "type" => "object",
+              "readonly" => "true"
+            }
+          }
         }
-      }
+      },
     },
 
     "additionalProperties" => false
-  },
+  }
 }

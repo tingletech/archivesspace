@@ -15,6 +15,14 @@ module CrudHelpers
   end
 
 
+  def handle_delete(model, id)
+    obj = model.get_or_die(id)
+    obj.delete
+
+    deleted_response(id)
+  end
+
+
   def self.dataset(model, where_clause)
     dataset = (model.model_scope == :repository) ? model.this_repo : model
 
@@ -32,7 +40,7 @@ module CrudHelpers
 
 
   def _listing_response(dataset, model)
-    results = dataset.collect {|obj| model.to_jsonmodel(obj).to_hash}
+    results = dataset.collect {|obj| model.to_jsonmodel(obj)}
 
     if dataset.respond_to? (:page_range)
       response = {

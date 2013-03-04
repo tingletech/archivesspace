@@ -1,6 +1,7 @@
 en:
   actions:
     add: Add
+    automate: Automatically generate
     browse: Browse
     cancel: Cancel
     confirm: Confirm
@@ -24,17 +25,30 @@ en:
     save_plus_one: "+1"
     save_anyway: Save Anyway
     suppress: Suppress
-    suppress_confirm_message: Suppress this Accession?
+    suppress_confirm_title: Suppress this Record?
+    suppress_confirm_message: While a suppressed record will remain in the database, it will become hidden to most users and unavailable to most functions.
     unsuppress: Unsuppress
-    unsuppress_confirm_message: Unsuppress this Accession?
+    unsuppress_confirm_title: Unsuppress this Record?
+    unsuppress_confirm_message: false
+    delete: Delete
+    delete_confirm_title: Delete this Record?
+    delete_confirm_message: "<p>Please be aware <strong>you cannot undo this action</strong>.</p><p>This action will remove the record from the database, including any references it has to other records.</p>"
     export_ead: Download EAD
+    loading: Loading...
+    revert: Revert Changes
+    finish_editing: Finish Editing
+    merge: Merge
   states:
     suppressed: Suppressed
+    auto_generated: System generates when saved
   navbar:
     brand: ArchivesSpace
     create: Create
     import: Import
+    import_eac: EAC file
     import_ead: EAD file
+    import_marcxml: MARCXML
+    import_accession_csv: Accession CSV
     search_all: All Records
     search_placeholder: Search
     create_repository_tooltip: "To create your first Repository, click the <span class='btn btn-mini dropdown-toggle'><span class='caret'></span></span> above and then the <strong>Create a Repository</strong> link."
@@ -44,8 +58,10 @@ en:
     repositories_select: Select a Repository
     manage_groups: Manage Groups
     manage_users: Manage Users
+    manage_enumerations: Manage Enumerations
     logout: Logout
     login: Sign In
+    login_expired_link: Please %{link} again.
     login_fail: Login attempt failed
     login_success: Login Successful. Redirecting...
     register: Register now
@@ -59,7 +75,9 @@ en:
     first: First
     last: Last
     previous: "&#171;"
+    previous_label: Previous
     next: "&#187;"
+    next_label: Next
     summary_prefix: Showing
     summary_offset_connector: "-"
     summary_total_connector: of
@@ -83,14 +101,23 @@ en:
     wrap_prefix: "Wrap with:"
     help: "Mixed Content Enabled&#160;&#160;--&#160;&#160;Type '<' for elements or highlight text to wrap"
   import:
+    eac_title: Import an EAC file
     ead_title: Import an EAD File
+    marcxml_title: Import a MARCXML file
+    accession_csv_title: Import Accession Records from a CSV File
     import_report: Import Report
-    ead_import_another: Import Another EAD File
+    import_another: Import Another File
     submit: Import
     submit_busy_message: Importing...
+    messages:
+      missing_repo: You need to select a repository before importing
+      missing_file: Please select an EAD file to upload
+      error_prefix: Error importing file
   errors:
-    403: Unable to Access Page
-    403_message: "The page you've tried to access may no longer exist or you may not have permission to view it."
+    error_403: Unable to Access Page
+    error_403_message: "The page you've tried to access may no longer exist or you may not have permission to view it."
+    error_404: Record Not Found
+    error_404_message: "The record you've tried to access may no longer exist or you may not have permission to view it."
   iso_3166:
     AF: AFGHANISTAN (AF)
     AX: ÅLAND ISLANDS (AX)
@@ -829,34 +856,26 @@ en:
     language_zza: Zaza; Dimili; Dimli; Kirdki; Kirmanjki; Zazaki
   digital_object:
     title: Title
+    title_default: New Digital Object
     digital_object_id: Identifier
     publish: Publish?
     level: Level
-    level_collection: Collection
-    level_work: Work
-    level_image: Image
     digital_object_type: Type
-    digital_object_type_cartographic: Cartographic
-    digital_object_type_mixed_materials: Mixed Materials
-    digital_object_type_moving_image: Moving Image
-    digital_object_type_notated_music: Notated Music
-    digital_object_type_software_multimedia: Software, Multimedia
-    digital_object_type_sound_recording: Sound Recording
-    digital_object_type_sound_recording_musical: Sound Recording (Musical)
-    digital_object_type_sound_recording_nonmusical: Sound Recording (Non-musical)
-    digital_object_type_still_image: Still Image
-    digital_object_type_text: Text
     language: Language
     <<: *language_attributes
     restrictions: Restrictions?
     _html:
       singular: Digital Object
       plural: Digital Objects
+      messages:
+        created: Digital Object Created
+        updated: Digital Object Saved
       section:
         basic_information: Basic Information
   digital_object_component:
     label: Label
     title: Title
+    title_default: New Digital Object Component
     component_id: Identifier
     publish: Publish
     language: Language
@@ -864,9 +883,13 @@ en:
     _html:
       singular: Digital Object Component
       plural: Digital Object Components
+      messages:
+        created: Digital Object Component Created
+        updated: Digital Object Component Saved
       section:
         basic_information: Basic Information
   location:
+    title: Title
     temporary: Temporary
     temporary_conservation: Conservation
     temporary_exhibit: Exhibit
@@ -894,6 +917,9 @@ en:
     _html:
       singular: Location
       plural: Locations
+      messages:
+        created: Location Created
+        updated: Location Saved
       section:
         basic_information: Basic Information
 
@@ -949,40 +975,13 @@ en:
     event_type: Type
     outcome: Outcome
     outcome_note: Outcome Note
-    event_type_accession: Accession
-    event_type_accumulation: Accumulation
-    event_type_acknowledgement: Acknowledgement
-    event_type_agreement received: Agreement Received
-    event_type_agreement sent: Agreement Sent
-    event_type_appraisal: Appraisal
-    event_type_assessment: Assessment
-    event_type_capture: Capture
-    event_type_cataloging: Cataloging
-    event_type_collection: Collection
-    event_type_compression: Compression
-    event_type_contribution: Contribution
-    event_type_custody transfer: Custody Transfer
-    event_type_deaccession: Deaccession
-    event_type_decompression: Decompression
-    event_type_decryption: Decryption
-    event_type_deletion: Deletion
-    event_type_digital signature validation: Digital Signature Validation
-    event_type_fixity check: Fixity Check
-    event_type_ingestion: Ingestion
-    event_type_message digest calculation: Message Digest Calculation
-    event_type_migration: Migration
-    event_type_normalization: Normalization
-    event_type_processing: Processing
-    event_type_publication: Publication
-    event_type_replication: Replication
-    event_type_resource merge: Resource Merge
-    event_type_resource component transfer: Resource Component Transfer
-    event_type_validation: Validation
-    event_type_virus check: Virus Check
     date: Event Date
     _html:
       singular: Event
       plural: Events
+      messages:
+        created: Event Created
+        updated: Event Saved
       section:
         basic_information: Basic Information
   deaccession:
@@ -1000,20 +999,13 @@ en:
   agent_name: &agent_name_attributes
     authority_id: Authority ID
     source: Source
-    source_local: Local sources
-    source_naf: NACO Authority File
-    source_nad: "NAD / ARK II Name Authority Database"
-    source_ulan: Union List of Artist Names
     rules: Rules
-    rules_local: Local rules
-    rules_aacr: Anglo-American Cataloging Rules
-    rules_dacs: "Describing Archives: A Content Standard"
     name_order: Name Order
     name_order_direct: Direct
     name_order_inverted: Inverted
     prefix: Prefix
     title: Title
-    primary_name: Primary Name
+    primary_name: Primary Part of Name
     rest_of_name: Rest of Name
     suffix: Suffix
     fuller_form: Fuller Form
@@ -1021,7 +1013,7 @@ en:
     dates: Dates
     qualifier: Qualifier
     sort_name: Sort Name
-    sort_name_auto_generate: Automatically generate?
+    sort_name_auto_generate: Auto Generate Sort Name?
     description_type: Description Type
     description_note: Description Note
     description_citation: Description Citation
@@ -1042,6 +1034,10 @@ en:
     software_name: Software Name
     version: Version
     manufacturer: Manufacturer
+  name:
+    _html:
+      singular: Name
+      plural: Names
   agent_person:
     _html:
       singular: Person
@@ -1065,7 +1061,7 @@ en:
     address_2: Address 2
     address_3: Address 3
     city: City
-    region: Region
+    region: State/Region
     country: Country
     post_code: Post Code
     telephone: Telephone
@@ -1154,18 +1150,7 @@ en:
       singular: Container
   instance: &instance_attributes
     instance_type: Type
-    instance_type_audio: Audio
-    instance_type_books: Books
-    instance_type_computer_disks: Computer Disks
-    instance_type_digital_object: Digital Object
-    instance_type_digital_object_link: Digital Object Link
-    instance_type_graphic_materials: Graphic Materials
-    instance_type_maps: Maps
-    instance_type_microform: Microform
-    instance_type_mixed_materials: Mixed Materials
-    instance_type_moving_images: Moving Images
-    instance_type_realia: Realia
-    instance_type_text: Text
+    digital_object: Digital Object
     _html:
       plural: Instances
       singular: Instance
@@ -1175,15 +1160,6 @@ en:
     portion_part: Part
     number: Number
     extent_type: Type
-    extent_type_cassettes: Cassettes
-    extent_type_cubic_feet: Cubic Feet
-    extent_type_leafs: Leafs
-    extent_type_linear_feet: Linear Feet
-    extent_type_photographic_prints: Photographic Prints
-    extent_type_photographic_slides: Photographic Slides
-    extent_type_reels: Reels
-    extent_type_sheets: Sheets
-    extent_type_volumes: Volumes
     container_summary: Container Summary
     physical_details: Physical Details
     dimensions: Dimensions
@@ -1262,9 +1238,7 @@ en:
     uncertain_inferred: Inferred
     uncertain_questionable: Questionable
     era: Era
-    era_ce: ce
     calendar: Calendar
-    calendar_gregorian: Gregorian
     _html:
       plural: Dates
       singular: Date
@@ -1276,17 +1250,76 @@ en:
     <<: *date_attributes
   accession:
     accession_date: Accession Date
+    accession_date_tooltip: |
+        <p>REQUIRED FIELD: The date the accession took place. It is not 
+        necessarily the same date as when the record is created.</p>
     accession_id: Identifier
+    accession_id_tooltip: |
+        <p>The internal database number for a specific accession record.</p>
     id_0: Identifier
+    id_0_tooltip: |
+        <p>REQUIRED FIELD:  The unique identifier for an accession within a
+        repository.</p>
+        <p>In ArchivesSpace, four fields are provided for parsing out an
+        accession identifier into its component parts. Each segment is
+        limited to 50 characters, or 200 characters total for the identifier.
+        At least the first part must be used for a valid accession record.</p>
+        <p>Default values may be used to populate the component parts that are
+        the same across all accession numbers.</p>
+        <p>See DACS 5.2.5</p>
     content_description: Content Description
+    content_description_tooltip: |
+        <p>A description of the document types and topical contents of the
+        accession.</p>
+        <p>See DACS 3.1.4-3.1.7</p>
+        <p>Examples:</p>
+        <p>Ten cartons of materials containing field notes, diaries, and
+        drafts of maps documenting Mr. Smith's 10 years in residence at the
+        Otay Mesa Ranch.</p>
     condition_description: Condition Description
+    condition_description_tooltip: |
+        <p>A description of the physical condition of the contents of the
+        accession, including any special handling requirements.</p>
+        <p>Examples:</p>
+        <p>The maps in box 4 are brittle and several are covered with mold.
+        Inhalation guards should be worn during processing.</p>
+    acquisition_type: Acquisition Type
+    acquisition_type_tooltip: |
+        <p>A categorical descriptor for the type of acquisition. Repositories
+        may customize the list of data values.</p>
+        <p>Examples:</p>
+        <ul>
+        <li>Gift</li>
+        <li>Purchase</li>
+        <li>Transfer</li>
+        </ul>
     publish: Publish?
     publish_help: Check this if you wish to publish this accession to the public.
+    publish_tooltip: |
+        <p>Determines whether this accession record will be published to
+        public (patron) interfaces.</p>
     restrictions: Restrictions?
+    restrictions_tooltip: |
+        <p>Indication if restrictions apply to the accession.</p>
+        <p>See DACS 4.1.5 - 4.1.6; 4.2.5 - 4.2.7, 4.3.4 - 4.3.6</p>
     title: Title
+    title_tooltip: |
+        <p>The title assigned to an accession or resource. The accession title
+        need not be the same as the resource title. Moreover, a title need not
+        be expressed for the accession record, as it can be implicitly 
+        inherited from the resource record to which the accession is
+        linked.</p>
+        <p>See DACS 2.3.18-2.3.22</p>
     _html:
       singular: Accession
       plural: Accessions
+      messages:
+        created: Accession Created
+        unsuppressed: Accession Unsuppressed
+        updated: Accession Saved
+        suppressed: Accession Suppressed
+        suppressed_info: Accession is suppressed and cannot be edited
+        deleted: Accession Deleted
       section:
         basic_information: Basic Information
   agent: &agent_attributes
@@ -1300,14 +1333,19 @@ en:
     _html:
       singular: Agent
       plural: Agents
+      messages:
+        created: Agent Created
+        updated: Agent Saved
       section:
         basic_information: Basic Information
         name: Names
         contacts: Contact Details
   archival_object:
     title: Title
+    title_default: New Archival Object
     ref_id: Ref ID
     ref_id_auto_generation_message: "-- auto-generated upon save --"
+    component_id: Component Unique Identifier
     level: Level
     level_class: Class
     level_collection: Collection
@@ -1322,33 +1360,45 @@ en:
     level_subseries: Sub-Series
     other_level: Other Level
     language: Language
+    automate_title: Automatically generate title
+    dates: Dates
     <<: *language_attributes
     "[:resource_id, :ref_id]": Ref ID
     _html:
       singular: Archival Object
       plural: Archival Objects
+      messages:
+        created: Archival Object Created
+        updated: Archival Object Saved
       section:
         basic_information: Basic Information
   group:
     group_code: Group code
     description: Description
-    members: Members
+    member_usernames: Members
     permissions: "Members can:"
     permission_types:
       manage_repository: manage this repository (change groups and other settings)
-      update_repository: create/modify/delete records in this repository
+      update_location_record: create/modify/delete location records in this repository
+      update_subject_record: create/update subject records
+      update_agent_record: create/update agent records
+      update_archival_record: create/update the major record types in this repository
       view_repository: view the records in this repository
       view_suppressed: view suppressed records in this repository
+      suppress_archival_record: suppress the major record types in this repository
+      delete_archival_record: delete the major record types in this repository
     _html:
       singular: Group
       plural: Groups
   resource:
     title: Title
+    title_default: New Resource
     id_0: Identifier
     "[:id_0, :id_1, :id_2, :id_3]": Identifier
     "[:repo_id, :identifier]": Identifier
     identifier: Identifier
     ref_id: Ref ID
+    resource_type: Resource Type
     level: Level
     level_class: Class
     level_collection: Collection
@@ -1374,11 +1424,6 @@ en:
     finding_aid_date: Date
     finding_aid_author: Author
     finding_aid_description_rules: Description Rules
-    finding_aid_description_rules_aacr: Anglo-American Cataloguing Rules
-    finding_aid_description_rules_cco: Cataloging Cultural Objects
-    finding_aid_description_rules_dacs: "Describing Archives: A Content Standard"
-    finding_aid_description_rules_rad: Rules for Archival Description
-    finding_aid_description_rules_isadg: International Standard for Archival Description - General
     finding_aid_language: Language
     finding_aid_sponsor: Sponsor
     finding_aid_edition_statement: Edition Statement
@@ -1386,22 +1431,45 @@ en:
     finding_aid_revision_date: Revision Date
     finding_aid_revision_description: Revision Description
     finding_aid_status: Status
-    finding_aid_status_completed: Completed
-    finding_aid_status_in_progress: In Progress
-    finding_aid_status_under_revision: Under Revision
-    finding_aid_status_unprocessed:
     finding_aid_note: Note
     language: Language
     <<: *language_attributes
     _html:
       singular: Resource
       plural: Resources
+      messages:
+        created: Resource Created
+        updated: Resource Saved
+        spawned: Resource spawned from Accession
       section:
         basic_information: Basic Information
         finding_aid: Finding Aid
+  related_accession:
+    _html:
+      singular: Related Accession
+      plural: Related Accessions
+  related_resource:
+    _html:
+      singular: Related Resource
+      plural: Related Resources
   repository:
-    repo_code: Repository code
-    description: Description
+    repo_code: Repository Short Name
+    name: Repository Name
+    org_code: Organization / Agency Code
+    parent_institution_name: Parent Institution Name
+    address_1: Address 1
+    address_2: Address 2
+    city: City
+    district: State or Region
+    country: Country
+    post_code: Postal Code
+    telephone: Telephone
+    telephone_ext: Extension
+    fax: Fax
+    email: Email
+    email_signature: Email Signature
+    url: Home Page URL
+    image_url: Branding Image URL
     _html:
       singular: Repository
       plural: Repositories
@@ -1410,12 +1478,16 @@ en:
     term_type: Type
   subject:
     terms: Terms
-    ref_id: Identifier
+    ref_id: Authority ID
+    source: Source
     heading: Subject Heading
     subject_preview: Subject Preview
     _html:
       singular: Subject
       plural: Subjects
+      messages:
+        created: Subject Created
+        updated: Subject Saved
       section:
         basic_information: Basic Information
   user:
@@ -1426,6 +1498,11 @@ en:
     _html:
       singular: User
       plural: Users
+      messages:
+        created: User Created
+        updated: User Saved
+        error_update: User not saved
+        error_create:
       section:
         account: Account
         edit_account: Edit Account
@@ -1436,36 +1513,22 @@ en:
     processing_total_extent: Processing total extent
     processing_total_extent_type: Extent type
     processing_total_extent_type_: --
-    processing_total_extent_type_cassettes: Cassettes
-    processing_total_extent_type_cubic_feet: Cubic Feet
-    processing_total_extent_type_leafs: Leafs
-    processing_total_extent_type_linear_feet: Linear Feet
-    processing_total_extent_type_photographic_prints: Photographic Prints
-    processing_total_extent_type_photographic_slides: Photographic Slides
-    processing_total_extent_type_reels: Reels
-    processing_total_extent_type_sheets: Sheets
-    processing_total_extent_type_volumes: Volumes
     processing_hours_total: Total processing hours
     processing_plan: Processing plan
     processing_priority: Priority
-    processing_priority_: --
-    processing_priority_high: High
-    processing_priority_medium: Medium
-    processing_priority_low: Low
     processing_status: Status
-    processing_status_: --
-    processing_status_new: New
-    processing_status_in_progress: In Progress
-    processing_status_completed: Completed
     processors: Processors
     rights_determined: Rights determined
     rights_determined_true: Yes
     rights_determined_false: No
-    linked_records: Linked records
+    linked_records: Record Links
     _html:
       singular: Collection Management Record
       plural: Collection Management Records
       title_prefix: Processing 
+      messages:
+        created: Collection Management Record Created
+        updated: Collection Management Record Saved
       section:
         basic_information: Basic Information
   collection_management_linked_record:
@@ -1474,3 +1537,24 @@ en:
       plural: Record Links
   collection_management_record:
     <<: *collection_management_attributes
+  enumeration:
+    name: Name
+    value: Value
+    translation: Translation
+    merge_into: Merge Into
+    _html:
+      singular: Enumeration
+      plural: Enumerations
+      messages:
+        deleted: Enumeration Value Deleted
+        delete_error: Failed to delete Enumeration Value
+        delete_conflict: "Unable to delete Enumeration as it's currently being referenced by a record"
+        created: Enumeration Value Created
+        create_error: Failed to create Enumeration Value
+        merged: Enumeration Value Merged
+        merge_tip: This Value may be merged with another
+        merge_error: Failed to merge Enumeration Value
+        no_selection: Please select an Enumeration Name
+        name_selector: Enumeration Name
+        no_name_provided: Select an Enumeration Name before creating a new value
+        

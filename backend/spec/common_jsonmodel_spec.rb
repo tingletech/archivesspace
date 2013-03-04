@@ -14,6 +14,7 @@ describe 'JSON model' do
                                    "elt_1" => {"type" => "string", "required" => false, "default" => "", "pattern" => "^[a-zA-Z0-9]*$"},
                                    "elt_2" => {"type" => "string", "required" => false, "default" => "", "pattern" => "^[a-zA-Z0-9]*$"},
                                    "elt_3" => {"type" => "string", "required" => false, "default" => "", "pattern" => "^[a-zA-Z0-9]*$"},
+                                   "url" => {"type" => "string", "pattern" => "^https?:\\/\\/[\\\S]+$"},
                                    "moos_if_missing" => {"type" => "string", "ifmissing" => "moo", "default" => ""},
                                    "no_shorty" => {"type" => "string", "required" => false, "default" => "", "minLength" => 6},
                                    "shorty" => {"type" => "string", "required" => false, "default" => "", "maxLength" => 2},
@@ -44,6 +45,12 @@ describe 'JSON model' do
                                      })
 
   end
+  
+  it "can recognize a valid url" do
+    lambda {
+      JSONModel(:testschema).from_hash({"elt_0" => "001", "url" => "http://www.foo.bar"})
+    }.should_not raise_error(ValidationException)
+  end
 
 
   it "flags errors on invalid values" do
@@ -51,22 +58,6 @@ describe 'JSON model' do
     lambda {
       JSONModel(:testschema).from_hash({"elt_0" => "/!$"})
     }.should raise_error(ValidationException)
-
-  end
-
-
-  it "provides accessors for non-schema properties but doesn't serialise them" do
-
-    obj = JSONModel(:testschema).from_hash({
-                                             "elt_0" => "helloworld",
-                                             "special" => "some string"
-                                           })
-
-    obj.elt_0.should eq ("helloworld")
-    obj.special.should eq ("some string")
-
-    obj.to_hash.has_key?("special").should be_false
-    JSON[obj.to_json].has_key?("special").should be_false
 
   end
 
@@ -193,6 +184,35 @@ describe 'JSON model' do
   end
 
 
+  it "supports adding errors to objects" do
+    ts = JSONModel(:testschema).from_hash({
+                                            "elt_0" => "helloworld",
+                                            "elt_1" => "thisisatest"
+                                          })
+    ts.add_error("elt_0", "'hello world' is two words, you squashed them together")
+    ts._exceptions[:errors]["elt_0"].include?("'hello world' is two words, you squashed them together")
+      .should be_true
+  end
+
+
+  it "supports adding custom error handlers" do
+    JSONModel::add_error_handler do |error|
+      if error["code"] == "OUTTOLUNCH"
+        raise NotFoundException.new("Seriously not good enough")
+      end
+    end
+    expect {
+      JSONModel::handle_error({"code" => "OUTTOLUNCH"})
+    }.to raise_error(NotFoundException)
+  end
+
+
+  it "can set the current backend session token and get it back" do
+    JSONModel::HTTP.current_backend_session = 'moo'
+    JSONModel::HTTP.current_backend_session.should eq('moo')
+  end
+
+
   it "enforces minimum length of property values" do
 
     ts = JSONModel(:testschema).from_hash({
@@ -265,47 +285,10 @@ describe 'JSON model' do
   end
 
 
-  it "handles recursively nested models" do
-
-    JSONModel.create_model_for("treeschema",
-                               {
-                                 "$schema" => "http://www.archivesspace.org/archivesspace.json",
-                                 "type" => "object",
-                                 "uri" => "/treethings",
-                                 "properties" => {
-                                   "name" => {"type" => "string", "required" => true, "minLength" => 1},
-                                   "children" => {"type" => "array", "additionalItems" => false, "items" => { "$ref" => "#" }},
-                                 },
-
-                                 "additionalProperties" => true
-                               })
-
-    child = JSONModel(:treeschema).from_hash({
-                                               "name" => "a nested child",
-                                               "moo" => "rubbish"
-                                             })
-
-    tsh = JSONModel(:treeschema).from_hash({
-                                             "name" => "a parent with a nest",
-                                             "foo" => "trash",
-                                             "children" => [child.to_hash,
-                                                            {"name" => "hash baby", "goo" => "junk"}]
-                                           }).to_hash
-
-    tsh.keys.should include("name")
-    tsh.keys.should_not include("foo")
-    tsh["children"][0].keys.should include("name")
-    tsh["children"][0].keys.should_not include("moo")
-    tsh["children"][1].keys.should include("name")
-    tsh["children"][1].keys.should_not include("goo")
-
-  end
-
-
   it "reports errors correctly for complicated resources with notes" do
     begin
       JSONModel(:resource).from_hash({"title" => "New Resource",
-                                       "id_0" => "",
+                                       "id_0" => "ABCD",
                                        "language" => "eng",
                                        "level" => "collection",
                                        "notes" => [{"jsonmodel_type" => "note_singlepart",
@@ -383,6 +366,53 @@ describe 'JSON model' do
     expect {
       term.save
     }.to_not raise_error(ValidationException)
+  end
+
+
+  it "supports validations across multiple threads" do
+    threads = []
+
+    threads << Thread.new do
+      1000.times do
+        build(:json_archival_object)
+      end
+
+      :ok
+    end
+
+    threads << Thread.new do
+      1000.times do
+        build(:json_resource)
+      end
+
+      :ok
+    end
+
+    threads << Thread.new do
+      1000.times do
+        build(:json_accession)
+      end
+
+      :ok
+    end
+
+    threads << Thread.new do
+      1000.times do
+        begin
+          build(:json_accession, :title => nil)
+        rescue JSONModel::ValidationException => e
+          e.errors.keys == ["title"] or raise "Oops: #{e.inspect}"
+        end
+      end
+
+      :ok
+    end
+
+
+    threads.each do |t|
+      t.join
+      t.value.should eq(:ok)
+    end
   end
 
 end

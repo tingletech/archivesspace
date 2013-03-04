@@ -1,19 +1,19 @@
 class DigitalObjectComponentsController < ApplicationController
   skip_before_filter :unauthorised_access, :only => [:index, :show, :new, :edit, :create, :update, :parent]
-  before_filter :user_needs_to_be_a_viewer, :only => [:index, :show]
-  before_filter :user_needs_to_be_an_archivist, :only => [:new, :edit, :create, :update, :parent]
+  before_filter(:only => [:index, :show]) {|c| user_must_have("view_repository")}
+  before_filter(:only => [:new, :edit, :create, :update, :parent]) {|c| user_must_have("update_archival_record")}
 
 
   FIND_OPTS = {
-    "resolve[]" => ["subjects","ref"]
+    "resolve[]" => ["subjects","linked_agents"]
   }
 
 
   def new
     @digital_object_component = JSONModel(:digital_object_component).new._always_valid!
-    @digital_object_component.title = "New Digital Object Component"
-    @digital_object_component.parent = JSONModel(:digital_object_component).uri_for(params[:digital_object_component_id]) if params.has_key?(:digital_object_component_id)
-    @digital_object_component.digital_object = JSONModel(:digital_object).uri_for(params[:digital_object_id]) if params.has_key?(:digital_object_id)
+    @digital_object_component.title = I18n.t("digital_object_component.title_default")
+    @digital_object_component.parent = {'ref' => JSONModel(:digital_object_component).uri_for(params[:digital_object_component_id])} if params.has_key?(:digital_object_component_id)
+    @digital_object_component.digital_object = {'ref' => JSONModel(:digital_object).uri_for(params[:digital_object_id])} if params.has_key?(:digital_object_id)
 
     return render :partial => "digital_object_components/new_inline" if inline?
 
@@ -32,7 +32,7 @@ class DigitalObjectComponentsController < ApplicationController
                 :find_opts => FIND_OPTS,
                 :on_invalid => ->(){ render :partial => "new_inline" },
                 :on_valid => ->(id){
-                  flash[:success] = "Digital Object Component Created"
+                  flash.now[:success] = I18n.t("digital_object_component._html.messages.created")
                   render :partial => "digital_object_components/edit_inline"
                 })
   end
@@ -43,7 +43,7 @@ class DigitalObjectComponentsController < ApplicationController
                 :obj => JSONModel(:digital_object_component).find(params[:id], FIND_OPTS),
                 :on_invalid => ->(){ return render :partial => "edit_inline" },
                 :on_valid => ->(id){
-                  flash[:success] = "Digital Object Component Saved"
+                  flash.now[:success] = I18n.t("digital_object_component._html.messages.updated")
                   render :partial => "edit_inline"
                 })
   end
@@ -60,7 +60,7 @@ class DigitalObjectComponentsController < ApplicationController
     params[:digital_object_component] ||= {}
     if params[:parent] and not params[:parent].blank?
       # set parent as DOC uri on params
-      params[:digital_object_component][:parent] = JSONModel(:digital_object_component).uri_for(params[:parent])
+      params[:digital_object_component][:parent] = {'ref' => JSONModel(:digital_object_component).uri_for(params[:parent])}
     else
       #remove parent from DOC
       params[:digital_object_component][:parent] = nil

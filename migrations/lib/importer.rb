@@ -8,12 +8,9 @@ module ASpaceImport
   class Importer
 
     @@importers = {}
-
-    # @return [Fixnum] the number of importers that have been loaded
-
-    def self.importer_count
-      @@importers.length
-    end
+    attr_accessor :parse_queue
+    attr_reader :error_log
+    attr_reader :import_log
 
     def self.list
       list = "The following importers are available"
@@ -31,12 +28,7 @@ module ASpaceImport
       i = @@importers[opts[:importer].to_sym]
       if i.usable
         if opts[:crosswalk]
-          
           ASpaceImport::Crosswalk.init(opts)
-          
-          i.class_eval do
-            extend ASpaceImport::Crosswalk
-          end
         end
         i.new opts
       else
@@ -58,18 +50,16 @@ module ASpaceImport
         raise StandardError.new("Attempted to register #{name} a second time")
       else
         c = Class.new(superclass, &block)
-        Object.const_set("#{name.to_s.capitalize}Importer", c)
+        cname_prefix = name.to_s.split(/[_-]/).map {|i| i.capitalize }.join
+        Object.const_set("#{cname_prefix}Importer", c)
         @@importers[name] = c
         true
       end
     end
 
-    # @return [Boolean]
-
     def self.usable
       true
     end
-
 
     def initialize(opts = { })
       
@@ -80,57 +70,128 @@ module ASpaceImport
       opts.each do |k,v|
         instance_variable_set("@#{k}", v)
       end
-      @import_keys = []
-      @goodimports = 0
       @import_log = []
-      @uri_map = {}
+      @error_log = []
+      @import_summary
+
+      @parse_queue = ASpaceImport::ParseQueue.new(opts)
     end
 
     def log_save_result(response)
-      @import_log << response
-      if !@dry && response.code == '200'
-        @uri_map = JSON.parse(response.body)['saved']
+      if response.code.to_s == '200'
+        response_body = JSON.parse(response.body)
+        
+        @import_summary = "Response Code 200: #{response_body['saved'].length} records saved."
+
+        @import_log = response_body['saved'].map {|k,u| "Saved: #{u}"}
+      else
+        @import_summary = "Import failed due to server error #{response.code}"
+        err_data = JSON.parse(response.body)['error']
+        error = LoggableError.new
+        if err_data.has_key?('error_class') 
+          error.header = "Response #{response.code}" << ": #{err_data['error_class']}"
+        end
+        if err_data.has_key?('record_title')
+          error.record_info[:title] = err_data['record_title']
+        end
+        if err_data.has_key?('record_type')
+          error.record_info[:type] = err_data['record_type']
+        end
+        if err_data.has_key?('errors')
+          err_data['errors'].each {|e| error.messages << "#{e[0]}: #{e[1].join(': ')}" }
+        end
+        
+        @error_log << error
       end
+    end
+    
+    def save_all
+      log_save_result(@parse_queue.save)
     end
     
     def report_summary
-      if @dry
-        "DRY RUN -- Records Saved: #{JSON.parse(@import_log[0])['saved'].length}"
-      else
-        @import_log.map { |r| 
-          "#{r.code} -- Records Saved: #{r.code == '200' ? JSON.parse(r.body)['saved'].length : 'Error' }" 
-        }.join('\n')
-      end
+      @import_summary
     end
     
     def report
-      if @dry
-        report_summary
-      else
-        report = "Aspace Import Report\n"
-        report += "--Executive Summary--\n"
-        report += report_summary
-        report += "\n--Details--\n"
-        report += @import_log.map { |r| 
-          "#{r.code}\n" + (r.code == '200'  ? JSON.parse(r.body)['saved'].map{ |k,u| "Saved: #{u}" }.join("\n") : JSON.parse(r.body).to_s)
-        }.join('\n')
-      
-        report
+      report = "Aspace Import Report\n"
+      report << "DRY RUN MODE\n" if @dry
+      unless self.import_log.empty?
+        report += self.import_log.join("\n")
       end
+      unless self.error_log.empty?
+        report += self.error_log.map { |e| e.to_s }.join('\n\n')
+      end
+      
+      report
     end
     
-    def import_log
-      @import_log
-    end
-    
-    def uri_map
-      @uri_map
+
+    # Errors arising from bad data should be reported
+    # out to the user. Other errors can surface 
+    # as they arise.
+    def run_safe
+      begin
+        self.run
+      rescue JSONModel::ValidationException => e
+        @import_summary = "Failed to POST import due to validation error."
+        error = LoggableError.new
+        error.header = e.class.name
+        if e.invalid_object
+          if e.invalid_object.respond_to?('title') && !e.invalid_object.title.nil?
+            error.record_info[:title] = e.invalid_object.title
+          else
+            error.record_info[:title] = "Unknown (#{e.invalid_object.to_s})"
+          end
+          error.record_info[:type] = e.invalid_object.jsonmodel_type.capitalize
+        end
+        error.messages = e.errors.map {|k,v| "#{k}: #{v}"}
+        @error_log << error
+      end
     end
 
     def run
       raise StandardError.new("Unexpected error: run method must be defined by a subclass")
     end
-
+    
+    # ParseQueue helpers
+    
+    # Empty out the parse queue and set any defaults
+    def clear_parse_queue
+      while !@parse_queue.empty?
+        @parse_queue.last.receivers.each { |r| r.receive }
+        @parse_queue.pop
+      end
+    end
   end
+  
+  
+  class LoggableError
+    attr_accessor :header
+    attr_accessor :record_info
+    attr_accessor :messages
+    
+    def initialize
+      @header
+      @record_info = {:type => "unknown", :title => "unknown"}
+      @messages = []
+    end
+    
+    def to_s
+      
+      s = "#{@header}\n"
+      s << "Record type: #{@record_info[:type].capitalize} \n"
+      s << "Record title: #{@record_info[:title].capitalize} \n"
+      s << "Error messages: "
+      s << @messages.join(' : ')
+      s
+    end
+    
+    def to_hash
+      self.instance_values
+    end
+      
+  end
+  
 end
 

@@ -5,13 +5,11 @@ require_relative 'lib/export'
 require_relative 'lib/request_context.rb'
 require_relative 'lib/webrick_fix'
 require_relative 'lib/import_helpers'
-require 'uri'
 
+require 'uri'
 require 'sinatra/base'
 require 'json'
-
 require 'rufus/scheduler'
-
 
 class ArchivesSpaceService < Sinatra::Base
 
@@ -50,11 +48,13 @@ class ArchivesSpaceService < Sinatra::Base
 
   configure do
 
-    JSONModel::init(:allow_other_unmapped => AppConfig[:allow_other_unmapped])
-
     require_relative "model/db"
-
     DB.connect
+
+    require_relative "model/backend_enum_source"
+    JSONModel::init(:allow_other_unmapped => AppConfig[:allow_other_unmapped],
+                    :enum_source => BackendEnumSource)
+
 
     unless DB.connected?
       puts "\n============================================\n"
@@ -74,8 +74,10 @@ class ArchivesSpaceService < Sinatra::Base
     if DB.connected?
       # Load all models
       require_relative "model/ASModel"
+      require_relative "model/dynamic_enums"
       require_relative "model/identifiers"
       require_relative "model/external_documents"
+      require_relative "model/external_ids"
       require_relative "model/subjects"
       require_relative "model/extents"
       require_relative "model/dates"
@@ -169,7 +171,7 @@ class ArchivesSpaceService < Sinatra::Base
 
 
   error ImportException do
-    json_response({:error => request.env['sinatra.error'].to_s}, 400)
+    json_response({:error => request.env['sinatra.error'].to_hash}, 400)
   end
 
   error NotFoundException do
@@ -178,6 +180,10 @@ class ArchivesSpaceService < Sinatra::Base
 
   error BadParamsException do
     json_response({:error => request.env['sinatra.error'].params}, 400)
+  end
+
+  error UserNotFoundException do
+    json_response({:error => {"member_usernames" => [request.env['sinatra.error']]}}, 400)
   end
 
   error ValidationException do
@@ -198,6 +204,10 @@ class ArchivesSpaceService < Sinatra::Base
 
   error Sequel::ValidationFailed do
     json_response({:error => request.env['sinatra.error'].errors}, 400)
+  end
+
+  error ReferenceError do
+    json_response({:error => request.env['sinatra.error']}, 400)
   end
 
   error Sequel::DatabaseError do

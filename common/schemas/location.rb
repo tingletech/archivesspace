@@ -6,6 +6,19 @@
     "properties" => {
       "uri" => {"type" => "string", "required" => false},
 
+      "title" => {"type" => "string", "readonly" => true},
+
+      "external_ids" => {
+        "type" => "array",
+        "items" => {
+          "type" => "object",
+          "properties" => {
+            "external_id" => {"type" => "string"},
+            "source" => {"type" => "string"},
+          }
+        }
+      },
+
       "building" => {"type" => "string", "minLength" => 1, "ifmissing" => "error"},
 
       "floor" => {"type" => "string", "required" => false},

@@ -2,11 +2,6 @@ require 'spec_helper'
 
 describe 'Event model' do
 
-  before(:all) do
-    @test_date = build(:json_date).to_hash
-  end
-
-
   it "enforces at least one linked agent and one linked record via its schema" do
 
     expect {
@@ -29,7 +24,8 @@ describe 'Event model' do
     opts = {:linked_records => []}
     
     [:resource, :accession, :archival_object].each do |type|
-      opts[:linked_records].push({'ref' => JSONModel(type).uri_for(2), 'role' => generate(:record_role)})
+      record = create("json_#{type}".intern)
+      opts[:linked_records].push({'ref' => record.uri, 'role' => generate(:record_role)})
     end
     
     expect {

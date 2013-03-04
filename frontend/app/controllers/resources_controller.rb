@@ -1,9 +1,9 @@
 class ResourcesController < ApplicationController
   skip_before_filter :unauthorised_access, :only => [:index, :show, :new, :edit, :create, :update]
-  before_filter :user_needs_to_be_a_viewer, :only => [:index, :show]
-  before_filter :user_needs_to_be_an_archivist, :only => [:new, :edit, :create, :update]
+  before_filter(:only => [:index, :show]) {|c| user_must_have("view_repository")}
+  before_filter(:only => [:new, :edit, :create, :update]) {|c| user_must_have("update_archival_record")}
 
-  FIND_OPTS = ["subjects", "location", "ref", "related_accessions"]
+  FIND_OPTS = ["subjects", "container_locations", "related_accessions", "linked_agents", "digital_object"]
 
   def index
     @search_data = JSONModel(:resource).all(:page => selected_page)
@@ -20,12 +20,17 @@ class ResourcesController < ApplicationController
   end
 
   def new
-    @resource = Resource.new(:title => "New Resource")._always_valid!
+    @resource = Resource.new(:title => I18n.t("resource.title_default"))._always_valid!
 
     if params[:accession_id]
       acc = Accession.find(params[:accession_id],
-                           "resolve[]" => ["subjects", "location", "ref"])
-      @resource.populate_from_accession(acc) if acc
+                           "resolve[]" => FIND_OPTS)
+
+      if acc
+        @resource.populate_from_accession(acc)
+        flash.now[:info] = "#{I18n.t("resource._html.messages.spawned")}: #{acc.title}"
+        flash[:spawned_from_accession] = acc.id
+      end
     end
 
     return render :partial => "resources/new_inline" if params[:inline]
@@ -35,32 +40,30 @@ class ResourcesController < ApplicationController
   def edit
     @resource = JSONModel(:resource).find(params[:id], "resolve[]" => FIND_OPTS)
     fetch_tree
+    flash.keep if not flash.empty? # keep the notices so they display on the subsequent ajax call
     return render :partial => "resources/edit_inline" if params[:inline]
   end
 
 
   def create
-    munge_related(params[:resource], :related_accessions)
+    flash.keep(:spawned_from_accession)
 
     handle_crud(:instance => :resource,
                 :on_invalid => ->(){
-                  return render :partial => "resources/new_inline" if params[:inline]
                   render action: "new"
                 },
                 :on_valid => ->(id){
-                  flash[:success] = "Resource Created"
-
-                  return render :partial => "resources/edit_inline" if params[:inline]
-                  redirect_to(:controller => :resources,
-                              :action => :edit,
-                              :id => id)
+                  redirect_to({
+                                :controller => :resources,
+                                :action => :edit,
+                                :id => id
+                              },
+                              :flash => {:success => I18n.t("resource._html.messages.created")})
                  })
   end
 
 
   def update
-    munge_related(params[:resource], :related_accessions)
-
     handle_crud(:instance => :resource,
                 :obj => JSONModel(:resource).find(params[:id],
                                                   "resolve[]" => FIND_OPTS),
@@ -68,7 +71,7 @@ class ResourcesController < ApplicationController
                   render :partial => "edit_inline"
                 },
                 :on_valid => ->(id){
-                  flash[:success] = "Resource Saved"
+                  flash.now[:success] = I18n.t("resource._html.messages.updated")
                   render :partial => "edit_inline"
                 })
   end

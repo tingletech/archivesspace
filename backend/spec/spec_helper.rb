@@ -73,8 +73,11 @@ require 'rack/test'
 require_relative "../app/lib/bootstrap"
 AppConfig[:search_user_secret] = "abc123"
 
+DB.connect
+require_relative "../app/model/backend_enum_source"
 JSONModel::init(:client_mode => true, :strict_mode => true,
                 :url => 'http://example.com', :allow_other_unmapped => true,
+                :enum_source => BackendEnumSource,
                 :priority => :high)
 
 module JSONModel
@@ -184,16 +187,19 @@ def as_test_user(username)
   old_user = Thread.current[:active_test_user]
   Thread.current[:active_test_user] = User.find(:username => username)
   orig = RequestContext.get(:enforce_suppression)
+  old_username = RequestContext.get(:current_username)
 
   begin
     if RequestContext.active?
       RequestContext.put(:enforce_suppression,
                          !Thread.current[:active_test_user].can?(:manage_repository))
+      RequestContext.put(:current_username, username)
     end
 
     yield
   ensure
     RequestContext.put(:enforce_suppression, orig) if RequestContext.active?
+    RequestContext.put(:current_username, old_username) if RequestContext.active?
     Thread.current[:active_test_user] = old_user
   end
 end
@@ -231,14 +237,15 @@ RSpec.configure do |config|
 
   # Roll back the database after each test
   config.around(:each) do |example|
-    DB.open(true) do
+    DB.open(true) do |db|
+      $testdb = db
       as_test_user("admin") do
         RequestContext.open do
           $repo_id = $default_repo
           $repo = JSONModel(:repository).uri_for($repo_id)
           JSONModel::set_repository($repo_id)
           RequestContext.put(:repo_id, $repo_id)
-
+          RequestContext.put(:current_username, "admin")
           example.run
         end
       end

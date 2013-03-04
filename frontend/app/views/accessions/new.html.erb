@@ -1,14 +1,17 @@
 <%= setup_context(:object => @accession) %>
 
 <%= form_for @accession, :as => "accession", :url => {:action => :create}, :html => {:class => 'form-horizontal', :id => "accession_form"} do |f| %>
-  <%= form_context :accession, @accession.to_hash(true) do |form| %>
+  <%= form_context :accession, @accession do |form| %>
     <div class="row-fluid">
       <div class="span3">
         <%= render :partial => "sidebar" %>
       </div>
-      <div class="span9 record-pane">
-        <h2><%= I18n.t("actions.new_prefix") %> <%= I18n.t("accession._html.singular") %> <span class="label label-info"><%= I18n.t("accession._html.singular") %></span></h2>
-        <%= render :partial => "accessions/form", :locals => {:form => form} %>
+      <div class="span9">
+        <div class="record-pane">
+          <%= link_to_help :topic => "accession" %>
+          <h2><%= I18n.t("actions.new_prefix") %> <%= I18n.t("accession._html.singular") %> <span class="label label-info"><%= I18n.t("accession._html.singular") %></span></h2>
+          <%= render :partial => "accessions/form", :locals => {:form => form} %>
+        </div>
       </div>
     </div>
   <% end %>

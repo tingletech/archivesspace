@@ -27,7 +27,7 @@ module ApplicationHelper
 
   def setup_context(options)
 
-    breadcrumb_trail = []
+    breadcrumb_trail = options[:trail] || []
 
     if options.has_key? :object
       object = options[:object]
@@ -72,11 +72,37 @@ module ApplicationHelper
 
     html = "<div class='"
     html += "token " if not opts[:inside_token_editor] 
-    html += "#{opts[:type]} has-popover' data-trigger='#{opts[:trigger] || "focus"}' data-html='true' data-placement='bottom' data-content=\"#{CGI.escape_html(popover)}\" data-template=\"#{popover_template}\" tabindex='1'>"
+    html += "#{opts[:type]} has-popover' data-trigger='#{opts[:trigger] || "focus"}' data-html='true' data-placement='#{opts[:placement] || "bottom"}' data-content=\"#{CGI.escape_html(popover)}\" data-template=\"#{popover_template}\" tabindex='1'>"
     html += "<span class='icon-token'></span>"
     html += opts[:label]
     html += "</div>"
     html.html_safe
+  end
+
+  def link_to_help(opts = {})
+    return if not ArchivesSpaceHelp.enabled?
+    return if opts.has_key?(:topic) and not ArchivesSpaceHelp.topic?(opts[:topic])
+
+    href = (opts.has_key? :topic) ? ArchivesSpaceHelp.url_for_topic(opts[:topic]) : ArchivesSpaceHelp.base_url
+
+    label = opts[:label] || I18n.t("help.icon")
+
+    title = (opts.has_key? :topic) ? I18n.t("help.topics.#{opts[:topic]}", :default => I18n.t("help.default_tooltip", :default => "")) : I18n.t("help.default_tooltip", :default => "")
+
+    link_to(
+            label.html_safe, 
+            href, 
+            {
+              :target => "_blank", 
+              :title => title,
+              :class => "context-help has-tooltip",
+              "data-placement" => "left"
+            }.merge(opts[:link_opts] || {})
+           )
+  end
+
+  def inline?
+    params[:inline] === "true"
   end
 
 end

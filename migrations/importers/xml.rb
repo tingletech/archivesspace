@@ -5,17 +5,61 @@ ASpaceImport::Importer.importer :xml do
 
   def initialize(opts)
 
-    # Validate the file first
+    # TODO:
     # validate(opts[:input_file]) 
     
-    hack_input_file_for_dumb_nokogiri_exceptions(opts)
+    hack_input_file_for_nokogiri_exceptions(opts)
 
     @reader = Nokogiri::XML::Reader(IO.read(opts[:input_file]))
-    @parse_queue = ASpaceImport::ParseQueue.new(opts)
+    @regex_cache = {}
+    @attr_selectors = []
     
-    @xpath, @depth = "/", 0
+    # Allow JSON Models to hold some Nokogiri info
+    ASpaceImport::Crosswalk.models.each do |key, model|
+      model.class_eval do
+        attr_accessor :depth
+        attr_accessor :xpath
+      end
+    end
     
-    # In DEBUG mode, generate a TSV audit trail
+    # Allow Nokogiri nodes to hold their path
+    Nokogiri::XML::Reader.class_eval do
+      attr_accessor :xpath
+    end
+    
+    # Make objects less promiscuous linkers when they're sitting in 
+    # the parse queue: 
+    ASpaceImport::Crosswalk.add_link_condition(lambda { |r, json|
+
+      if r.class.xdef['axis'] && r.class.valid_json_types.include?(json.jsonmodel_type)
+      
+        return Proc.new {|axis, offset|
+          if (axis == 'parent' && offset == 1) || \
+             (axis == 'ancestor' && offset >= 1) || \
+             (axis == 'descendant' && offset <= -1 ) || \
+             (axis == 'self' && offset == 0)
+            true
+          else
+            false
+          end
+        }.call(r.class.xdef['axis'], r.object.depth - json.depth)      
+
+      else
+        # Fall back to testing the other object's source node
+        return false unless r.class.xdef['xpath']
+
+        offset = json.depth - r.object.depth
+        xpath_regex = regexify(json.xpath, offset)
+        
+        # use caching to limit regex matching
+        unless r.cache.has_key?(xpath_regex)
+          r.cache[xpath_regex] = r.class.xdef['xpath'].find { |xp| xp.match(xpath_regex) } ? true : false
+        end
+        
+        r.cache[xpath_regex]
+      end
+    })
+    
     set_up_tracer if $DEBUG   
       
     super
@@ -24,7 +68,7 @@ ASpaceImport::Importer.importer :xml do
 
 
   def self.profile
-    "XML pull parser for use with a YAML crosswalk"
+    "Imports XML-encoded data using Nokogiri::XML::Reader"
   end
 
 
@@ -32,66 +76,140 @@ ASpaceImport::Importer.importer :xml do
     
     @reader.each do |node|
 
-      node_args = [xpath(node), node.depth, node.node_type]
-            
-      node.start_trace(*node_args) if $DEBUG
+      add_xpath(node)
 
-      if node.node_type == 1
-        if (json = self.class.object_for_node(*node_args))
+      node.start_trace if $DEBUG
 
-          json.receivers.for_node("self") do |r|
-            r.receive(node.inner_xml)
-          end
-          
-          json.receivers.for_node("self::name") do |r|
-            r.receive(node.name)
-          end
-          
-          node.attributes.each do |a|        
-            json.receivers.for_node("@#{a[0]}") do |r|
-              r.receive(a[1])
-            end                         
-          end
-          
-          @parse_queue.push(json)
-        else
-          @parse_queue.receivers.for_node(*node_args) do |r|
-            r.receive(node.inner_xml)
-          end
-        end
+      case node.node_type
 
-      elsif node.node_type == 3
-        @parse_queue.receivers.for_node(*node_args) do |r|
-          r.receive(node.value.sub(/[\s\n]*$/, ''))
-        end
-      
-      # If a closing tag matches a node
-      elsif (json = self.class.object_for_node(*node_args, @parse_queue))
-        json.set_default_properties
-    
-        # Temporary hacks and whatnot:                                          
-        # Fill in missing values; add supporting records etc.
-        # For instance:
-      
-        if ['subject'].include?(json.class.record_type)
-        
-          @vocab_uri ||= "/vocabularies/#{@vocab_id}"
-    
-          json.vocabulary = @vocab_uri
-          json.terms.each {|t| t['vocabulary'] = @vocab_uri}
-        end
-      
-        @parse_queue.pop
+      when 1
+        handle_opener(node)        
+      when 3
+        handle_text(node)
+      when 15
+        handle_closer(node)
       end
-
     end
     
-    log_save_result(@parse_queue.save)
-    $tracer.out(@uri_map) if $DEBUG
+    save_all 
   end  
 
+  def handle_opener(node)
+    
+    if object_raised_by node
+      parse_queue.with_raised { get_data_from node }
+    else
+      parse_queue.select_each_and { get_data_from node }
+    end
+  end
+  
+  def handle_text(node)
+    
+    parse_queue.select_each_and { get_data_from node }        
+  end
+  
+  def handle_closer(node)
+    
+    if object_raised_by node
+      parse_queue.raised.reverse.each do |rsd| 
+        raise "Unexpected Object Type in Queue" unless rsd = parse_queue.last
+        
+        rsd.set_default_properties
+        parse_queue.pop
+      end
+      
+      parse_queue.unraise_all  
+      
+    
+      # parse_queue.last.set_default_properties
 
-  # Very rough XSD validation (Not working yet)
+      # parse_queue.pop
+    end
+  end
+  
+  def get_data_from(node)
+    
+    # extract data from selfsame node
+
+
+    if node.depth == parse_queue.selected.depth
+
+      parse_queue.selected.receivers.each do |r|
+        
+        if (xp_list = r.class.xdef['xpath'])
+          if xp_list.find {|xp| xp == "self"}
+            r << node.inner_xml
+          elsif xp_list.find {|xp| xp == "self::name"}
+            r << node.name
+          end
+          
+          node.attributes.each do |a|
+            if xp_list.find {|xp| xp == "@#{a[0]}"}
+              r << a[1]
+            end
+          end
+        end
+      end
+    # extract data from a descendant or ancestor node 
+    else
+
+      offset = node.depth - parse_queue.selected.depth
+      xpath_regex = regexify(node.xpath, offset)
+      
+      parse_queue.selected.receivers.each do |r|
+
+        next unless r.class.xdef['xpath']
+        
+        if r.class.xdef['xpath'].find { |xp| xp.match(xpath_regex) } 
+          if node.node_type == 1
+            r << node.inner_xml 
+          elsif node.node_type == 3
+            r << node.value.sub(/[\s\n]*$/, '')
+          else 
+            raise "Attempted to get data from an unhandleable node type"
+          end
+        end
+      end
+    end
+  end
+  
+  
+  def object_raised_by(node)
+    
+    parse_queue.unraise_all
+
+    types = get_types_for_node(node)
+
+    if !types.empty?
+
+      if node.node_type == 1
+
+        types.each do |type|
+
+          json = ASpaceImport::Crosswalk.models[type].new
+
+          json.xpath, json.depth = node.xpath, node.depth
+
+          $tracer.trace(:aspace_data, json, nil) if $DEBUG
+
+          parse_queue.push_and_raise(json)
+        end
+
+      else
+
+        types.reverse.each_with_index do |t, i|
+          # Just a sanity check
+          raise "Record Type mismatch in parse queue" unless parse_queue[(i+1)*-1].class.record_type == ASpaceImport::Crosswalk.models[t].record_type
+          parse_queue.raised.push(parse_queue[(i+1)*-1])
+        end
+
+      end
+      true
+    else
+      false
+    end
+  end
+  
   
   def validate(input_file)
     
@@ -110,12 +228,108 @@ ASpaceImport::Importer.importer :xml do
   
   end
   
-  protected
+
+  def get_types_for_node(node)
+    regex = regexify(xpath(node))
+
+    if (types = ASpaceImport::Crosswalk.entries.map {|k,v| k if v["xpath"] and v["xpath"].find {|x| x.match(regex)}}.compact)
+      return types
+    else
+      return nil
+    end
+  end
+
   
+  # Returns a regex object that is used to match the xpath of a 
+  # parsed node with an xpath definition in the crosswalk. In the 
+  # case of properties, the offset is the depth of the predicate 
+  # node less the depth of the subject node. An offset of nil
+  # indicates a root perspective.
+  
+  def regexify(xp, offset = nil)
+    
+    atts = @attr_selectors || []
+    
+    # Slice the xpath based on the offset
+    # escape for `text()` nodes
+    unless offset.nil? || offset < 1
+      xp = xp.scan(/[^\/]+/)[offset*-1..-1].join('/')
+      xp.gsub!(/\(\)/, '[(]{1}[)]{1}')
+    end
+    
+    # TODO: chop out the irrelevant attrs before making the key
+    key = "#{xp}#{atts.to_s}#{offset}"
+    
+    unless @regex_cache[key]
+    
+      case offset
+      
+      when nil
+        @regex_cache[key] ||= Regexp.new "^(/|/" << xp.split("/")[1..-2].map { |n| 
+                                "(child::)?(#{n}|\\*)" 
+                                }.join('/') << ")" << xp.gsub(/.*\//, '/') \
+                                << (atts.last ? atts.last.map {|k,v| "(\\[#{k.to_s}='#{v}'\\])?"}.join : "") \
+                                << "$"
+      
+      when 0
+        @regex_cache[key] ||= /^[\/]?#{xp.gsub(/.*\//, '')}$/
+
+      when 1..100
+      
+        ns = []
+        xp.scan(/[a-zA-Z_]+/)[offset*-1..-2].each_with_index do |n, i|
+      
+          j = offset + i
+          if atts[j] && !atts[j].empty?
+            atts[j].each {|k,v| n += "(\\[#{k.to_s}='#{v}'\\])?"}
+          end
+          
+          ns << "(child::)?(#{n}|\\*)"
+        end
+      
+      
+        @regex_cache[key] ||= Regexp.new "^(descendant::|" << ns.join('/') \
+                                                           << (offset > 1 ? "/" : "") \
+                                                           << "(child::)?)" \
+                                                           << xp.gsub(/.*\//, '') \
+                                                           << (atts.last ? atts.last.map {|k,v| "(\\[#{k.to_s}='#{v}'\\])?"}.join : "")\
+                                                           << "$"
+
+    
+      when -100..-1
+        @regex_cache[key] ||= Regexp.new "^(ancestor::|" << ((offset-1)*-1).times.map {
+                                  "parent::\\*/"
+                                  }.join << "parent::)#{xp.gsub(/.*\//, '')}"
+      end
+    end
+
+    @regex_cache[key]
+    
+  end
+  
+  private
+  
+  
+  def add_xpath(node)
+    node.instance_variable_set("@xpath", xpath(node))
+  end
+        
+  
+  # Builds a full path to the node
   def xpath(node)
     
+    @xpath ||= '/'
+    @depth ||= 0
+    @attr_selectors[node.depth] = {}
+    
+    while @attr_selectors.last != @attr_selectors[node.depth]
+      @attr_selectors.slice!(-1)
+    end
+    
     name = node.name.gsub(/#text/, "text()")
-
+    node.attributes.each do |a|
+      @attr_selectors[@depth]["@#{a[0]}"] = a[1]
+    end
 
     if @depth < node.depth
       @xpath.concat("/#{name}")
@@ -126,38 +340,23 @@ ASpaceImport::Importer.importer :xml do
     else
       raise "Can't parse node depth to create XPATH"
     end
-    
 
     @depth = node.depth
     @xpath.clone
   end
   
+  # Development / Debugging stuff
+  
   def set_up_tracer
     require 'tmpdir'
     $tracer = Tracer.new
-    
-    ASpaceImport::Crosswalk::module_eval do
-      alias :object_for_node_original :object_for_node
-    
-      def object_for_node(*parseargs)
-      
-        if (json = object_for_node_original(*parseargs))
-          nname, ndepth, ntype = *parseargs
-          $tracer.trace(:aspace_data, json, nil) if ntype == 1
-    
-          json
-        else
-          false
-        end
-      end
-    end
 
     
     Nokogiri::XML::Reader.class_eval do
       alias_method :inner_xml_original, :inner_xml
 
-      def start_trace(*parseargs)
-        $tracer.set_node(self, parseargs[0])
+      def start_trace
+        $tracer.set_node(self)
       end
 
       def inner_xml
@@ -183,11 +382,29 @@ ASpaceImport::Importer.importer :xml do
         end
       end
     end
+    
+    ASpaceImport::Importer.class_eval do
+      alias_method :save_all_original, :save_all
+      
+      def save_all
+        uri_map = {}
+        response = @parse_queue.save
+        
+        if response.code.to_s == '200'
+          JSON.parse(response.body)['saved'].each do |k,v|
+            uri_map[k] = v
+          end
+          $tracer.out(uri_map)
+        end  
+        
+        log_save_result(response)
+      end
+    end
+    
   end
 
-  protected
   
-  def hack_input_file_for_dumb_nokogiri_exceptions(opts)
+  def hack_input_file_for_nokogiri_exceptions(opts)
     
     # Workaround for Nokogiri bug:
     # https://github.com/sparklemotion/nokogiri/pull/805
@@ -215,12 +432,12 @@ class Tracer
     @index, @registry = 0, []
   end
   
-  def set_node(node, xpath)
+  def set_node(node)
     @index += 1 unless @index == 0 and @registry.length == 0
     @registry[@index] = {
                           :node_type => node.node_type, 
                           :node_value => node.value? ? node.value.sub(/[\s\n]*$/, '') : nil,
-                          :xpath => xpath,
+                          :xpath => node.xpath,
                           :aspace_data => [],
                           :inner_xml => []
                         }

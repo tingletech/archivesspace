@@ -4,6 +4,7 @@ class User < Sequel::Model(:user)
   set_model_scope :global
   corresponds_to JSONModel(:user)
 
+  @@unlisted_user_ids = nil
 
   def self.ADMIN_USERNAME
     "admin"
@@ -14,9 +15,18 @@ class User < Sequel::Model(:user)
     AppConfig[:search_username]
   end
 
+
+  def self.PUBLIC_USERNAME
+    AppConfig[:public_username]
+  end
+
   
   def self.unlisted_user_ids
-    [2]
+    @@unlisted_user_ids if not @@unlisted_user_ids.nil?
+
+    @@unlisted_user_ids = Array(User[:username => [User.SEARCH_USERNAME, User.PUBLIC_USERNAME]]).collect {|user| user.id}
+
+    @@unlisted_user_ids
   end
 
 
@@ -28,6 +38,11 @@ class User < Sequel::Model(:user)
   def validate
     validates_unique(:username,
                      :message => "Username '#{self.username}' is already in use")
+  end
+
+
+  def anonymous?
+    false
   end
 
 
@@ -72,6 +87,13 @@ class User < Sequel::Model(:user)
     end
 
     result
+  end
+
+
+  def add_to_groups(groups)
+    Array(groups).each do |group|
+      group.add_user(self)
+    end
   end
 
 

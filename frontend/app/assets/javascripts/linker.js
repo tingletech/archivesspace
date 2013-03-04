@@ -1,4 +1,3 @@
-//= require jquery.sortable
 //= require jquery.tokeninput
 
 $(function() {
@@ -23,7 +22,7 @@ $(function() {
         multiplicity: $this.data("multiplicity") || "many",
         label: $this.data("label"),
         label_plural: $this.data("label_plural"),
-        modal_id: "linkerModalFor_"+$this.data("class"),
+        modal_id: $this.data("modal_id") || ($this.attr("id") + "_modal"),
         sortable: $this.data("sortable") === true,
         types: $this.data("types")
       };
@@ -187,7 +186,10 @@ $(function() {
 
 
       var enableSorting = function() {
-        $(".token-input-list", $linkerWrapper).sortable("destroy").sortable({
+        if ($(".token-input-list", $linkerWrapper).data("sortable")) {
+          $(".token-input-list", $linkerWrapper).sortable("destroy");
+        }
+        $(".token-input-list", $linkerWrapper).sortable({
           items: 'li.token-input-token'
         });
         $(".token-input-list", $linkerWrapper).off("sortupdate").on("sortupdate", function() {
@@ -245,7 +247,9 @@ $(function() {
             $this.parents("form:first").triggerHandler("form-changed");
           },
           onAdd:  function(item) {
-            enableSorting();
+            if (config.sortable && config.multiplicity == "many") {
+              enableSorting();
+            }
             $this.parents("form:first").triggerHandler("form-changed");
             $(document).triggerHandler("init.popovers");
           },

@@ -8,128 +8,73 @@ module ASpaceImport
     def self.init(opts)
 
       @models = {}
+      @link_conditions = []
+      
       @walk = Psych.load(IO.read(File.join(File.dirname(__FILE__),
                                                 "../crosswalks",
                                                 "#{opts[:crosswalk]}.yml")))
-                                                
-      @regex_cache = {}
+      
+      entries.each do |key, xdef|
+        record_type = xdef.has_key?('record_type') ? xdef['record_type'] : key
+        @models[key] = create_model(key, JSONModel::JSONModel(record_type))
+      end                                                                               
     end 
-  
-    def self.walk     
-      @walk
+    
+    def self.entries
+      @walk['entities']
     end
     
     def self.models
       @models
     end
     
+    def self.add_link_condition(lamb)
+      @link_conditions << lamb
+    end
+    
+    def self.link_conditions
+      @link_conditions
+    end
+    
     def self.mint_id
-      @counter ||= 0
+      @counter ||= 1000
       @counter += 1
     end
+      
     
-    # Returns a regex object that is used to match the xpath of a 
-    # parsed node with an xpath definition in the crosswalk. In the 
-    # case of properties, the offset is the depth of the predicate 
-    # node less the depth of the subject node. An offset of nil
-    # indicates a root perspective.
-    
-    def self.regexify_xpath(xp, offset = nil)
-      
-      # Slice the xpath based on the offset
-      # escape for `text()` nodes
-      unless offset.nil? || offset < 1
-        xp = xp.scan(/[^\/]+/)[offset*-1..-1].join('/')
-        xp.gsub!(/\(\)/, '[(]{1}[)]{1}')
-      end
-      
-      @regex_cache[xp] ||= {}
-      
-      case offset
+    def self.create_model(model_key, json_model)
+
+      cls = Class.new(json_model) do
         
-      when nil
-        @regex_cache[xp][offset] ||= Regexp.new "^(/|/" << xp.split("/")[1..-2].map { |n| 
-                                "(child::)?(#{n}|\\*)" 
-                                }.join('/') << ")" << xp.gsub(/.*\//, '/') << "$"
-        
-      when 0
-        @regex_cache[xp][offset] ||= /^[\/]?#{xp.gsub(/.*\//, '')}$/
-
-      when 1..100
-        @regex_cache[xp][offset] ||= Regexp.new "^(descendant::|" << xp.scan(/[a-zA-Z_]+/)[offset*-1..-2].map { |n| 
-                                "(child::)?(#{n}|\\*)" 
-                                }.join('/') << "/(child::)?)" << xp.gsub(/.*\//, '') << "$"
-
-      
-      when -100..-1
-        @regex_cache[xp][offset] ||= Regexp.new "^(ancestor::|" << ((offset-1)*-1).times.map {
-                                  "parent::\\*/"
-                                  }.join << "parent::)#{xp.gsub(/.*\//, '')}"
-      end
-
-      @regex_cache[xp][offset]
-      
-    end
-    
-    # class method to mix into an importer class.
-    # analyzes parsing context and returns a new
-    # object, a queued object, or false. also
-    # wraps the object's model so that it can pick
-    # up attributes from the parser.
-      
-    def object_for_node(*parseargs)
-      xpath, ndepth, ntype, queue = *parseargs
-      models = ASpaceImport::Crosswalk.models
-      walk = ASpaceImport::Crosswalk.walk
-      regex = ASpaceImport::Crosswalk.regexify_xpath(xpath)
-      types = walk["entities"].map {|k,v| k if v["xpath"] and v["xpath"].find {|x| x.match(regex)}}.compact
-
-      case types.length
-
-      when 2..100
-        raise "Too many matched entities"
-      when 1 
-        if ntype == 1
-          models[types[0]] ||= wrap_model(JSONModel::JSONModel(types[0]))
-          tweak_object(models[types[0]].new, *parseargs)
-        elsif queue
-          raise "Record Type mismatch in parse queue" unless queue[-1].class.record_type == types[0]
-          queue[-1]
+        def self.init(model_key)
+          @model_key = model_key
+          @dispatcher_class = Class.new(ASpaceImport::Crosswalk::PropertyReceiverDispatcher)
+          @dispatcher_class.init(self)
         end
-      when 0
-        false
-      end  
-    end
-    
-    def wrap_model(cls)
-  
-      cls.class_eval do
         
-        @receivers = ASpaceImport::Crosswalk.property_receivers(cls)
-        
-        def self.receivers
-          @receivers
+        def self.model_key
+          @model_key
         end
-             
+        
+        def initialize(*args)
+          
+          super
+          
+          @dispatcher = self.class.instance_variable_get(:@dispatcher_class).new(self)
+          
+          # Set a pre-save URI to be dereferenced by the backend
+          if self.class.method_defined? :uri
+            self.uri = self.class.uri_for(ASpaceImport::Crosswalk.mint_id) 
+          end
+          
+        end
+        
         def receivers
-          @property_mgr ||= ASpaceImport::Crosswalk::PropertyMgr.new(self)
-          @property_mgr
+          @dispatcher
         end
                  
         def set_default_properties
           self.receivers.each { |r| r.receive }
-        end
-        
-        def tmp_vals
-          @tmp_vals ||= {}
-        end
-              
-        def depth
-          @depth ||= 0
-        end
-        
-        def xpath
-          @xpath ||= nil
         end
         
         def block_further_reception
@@ -141,37 +86,41 @@ module ASpaceImport
           @done_being_received
         end
         
-        attr_accessor :depth
-        attr_accessor :xpath
-        
+        def method_missing(meth, *args, &block)
+          @stash ||= {}          
+          if meth.to_s.match(/=$/)
+            @stash[meth.to_s.sub(/=/,'')] = args[0]
+          else
+            @stash.has_key?(meth.to_s) ? @stash[meth.to_s] : nil
+          end
+        end
+          
       end
-
+            
+      cls.init(model_key)
+      
       cls
     end  
-    
-    def tweak_object(json, *parseargs)
-      json.xpath, json.depth = *parseargs
-
-      # Set a pre-save URI to be dereferenced by the backend
-      if json.class.method_defined? :uri
-        json.uri = json.class.uri_for(ASpaceImport::Crosswalk.mint_id) 
-      end
       
-      json
-    end   
 
     # Intermediate / chaining class for yielding property receivers given
     # either an xpath or a record_type along with an optional depth (of
     # the parsing context into which the reciever will be yielded)
 
-    class PropertyMgr
+    class PropertyReceiverDispatcher
+      
+      def self.init(model)
+        @receiver_classes = ASpaceImport::Crosswalk.property_receivers(model)
+      end
+      
+      def self.receiver_classes
+        @receiver_classes
+      end
       
       def initialize(json)
         @json = json
-        @depth = @json.depth
         @receivers = {}
-
-        @json.class.receivers.each do |p, r|
+        self.class.receiver_classes.each do |p, r|
           @receivers[p] = r.new(@json)
         end 
       end
@@ -179,90 +128,98 @@ module ASpaceImport
       def each
         @receivers.each { |p, r| yield r }                  
       end
-      
-      # Given *nodeargs, yield property receivers
-      # that will take data from the parsing context
-      # and apply it to the JSON object
-      
-      def for_node(*nodeargs)
-        xpath, depth, ntype = *nodeargs
 
-        return unless xpath
 
-        offset = depth ? depth - @depth : 0 
-        xpath_regex = ASpaceImport::Crosswalk::regexify_xpath(xpath, offset) 
-
-        @receivers.each do |p, r|          
-          yield r if r.receives_node? xpath_regex
-        end 
+      def by_name(prop_name)
+        @receivers[prop_name]
       end
-      
-      # Generate receivers for another json object
-      # parsed earilier or later.
-      
-      def for_obj(json)
 
+
+      def for_obj(json)
+        return nil if json.done_being_received?
+        
         @receivers.each do |p, r|
-          yield r if r.receives_obj? json
+          yield r unless ASpaceImport::Crosswalk.link_conditions.map {|lc| lc.call(r, json) }.include?(false)          
         end
       end
-      
+
     end
-    
+
     # Generate receiver classes for each property of a 
     # json model
 
     def self.property_receivers(model)
       receivers = {}
-      
-      @walk['entities'][model.record_type]['properties'].each do |p, defn|
-         receivers[p] = self.initialize_receiver(p, self.property_type(model.schema['properties'][p]), model.schema['properties'][p], defn)
+
+      self.entries[model.model_key]['properties'].each do |p, xdef|
+        sdef = p.match(/^_/) ? {'type' => 'string'} : model.schema['properties'][p]
+        receivers[p] = self.initialize_receiver(p, sdef, xdef)
       end
      
       receivers
     end
 
-    # returns a Property Receiver Class for a property of
-    # a JSONModel Class
+    # @param property_name - [String] the name of the property
+    # @param def_from_schema - [Hash] the schema fragement that defines the property
+    # @param def_from_xwalk - [Hash] the crosswalk fragment that maps source data to 
+    #  the property
     
-    def self.initialize_receiver(p, val_type, schema_def, xwalk_def)
+    def self.initialize_receiver(property_name, def_from_schema, def_from_xwalk)
+
+      if def_from_schema.nil?
+        raise CrosswalkException.new(:property => property_name, :property_def => nil)
+      end
+
       Class.new(PropertyReceiver) do
         
         class << self
           attr_reader :property
-          attr_reader :val_type
-          attr_reader :sdef
+          attr_reader :property_type
           attr_reader :xdef
-          attr_reader :received_jsonmodel_types
+          attr_reader :valid_json_types
         end
         
-        @property = p
-        @val_type = val_type
-        @sdef = schema_def
-        @xdef = xwalk_def
-
-        case @val_type 
-          
-        when :uri
-          @received_jsonmodel_types = [@sdef['type'].scan(/:([a-zA-Z_]*)/)[0][0]]
-        when :array_of_uris_or_objects
-          @received_jsonmodel_types = [@sdef['items']['type'].scan(/:([a-zA-Z_]*)/)[0][0]]
-        when :array_of_objects 
-          if @sdef['items']['type'].is_a? Array
-            @received_jsonmodel_types = []
-            @sdef['items']['type'].each { |t| @received_jsonmodel_types << t['type'].scan(/:([a-zA-Z_]*)/)[0][0]}
+        @property = property_name
+        @property_type, @valid_json_types = ASpaceImport::Crosswalk.get_property_type(def_from_schema)
+        @xdef = def_from_xwalk
+        
+        if @property_type.match /^record/ 
+          if @valid_json_types.empty?
+            raise CrosswalkException.new(:property => @property, :val_type => @property_type) 
           end
         end
-
-        
       end
     end
+    
+    class CrosswalkException < StandardError
+      attr_accessor :property
+      attr_accessor :val_type
+      attr_accessor :property_def
+
+      def initialize(opts)
+        @property = opts[:property]
+        @val_type = opts[:val_type]
+        @property_def = opts[:property_def]
+      end
+
+      def to_s
+        if @property_def
+          "#<:CrosswalkException: Can't classify the property schema: #{property_def.inspect}>"
+        elsif @val_type
+          "#<:CrosswalkException: Can't identify a Model for property '#{property}' of type '#{val_type}'>"
+        else
+          "#<:CrosswalkException: Can't identify a schema fragment for property '#{property}'>"
+        end
+      end
+    end
+    
     
     # Objects to manage the setting of a property of the
     # master json object (@object)  
     
     class PropertyReceiver
       attr_reader :object
+      attr_accessor :cache
       
       def initialize(json)
         @object = json
@@ -271,45 +228,6 @@ module ASpaceImport
       
       def to_s
         "Property Receiver for #{@object.class.record_type}\##{self.class.property}"
-      end
-      
-      # Determine if this receiver will accept another object 
-      # as a property of the receiver's @object. 
-      
-      def receives_obj?(other_object)
-
-        return false if other_object.done_being_received?
-        
-        if self.class.xdef['axis'] && self.class.received_jsonmodel_types.include?(other_object.jsonmodel_type)
-        
-          if self.class.xdef['axis'] == 'parent' && @object.depth - other_object.depth == 1
-            true
-          elsif self.class.xdef['axis'] == 'ancestor' && @object.depth - other_object.depth >= 1
-            true
-          elsif self.class.xdef['axis'] == 'descendant' && other_object.depth - @object.depth >= 1
-            true
-          else
-            false
-          end
-          
-        else
-          # Fall back to testing the other object's source node
-          offset = other_object.depth - @object.depth 
-          receives_node? ASpaceImport::Crosswalk::regexify_xpath(other_object.xpath, offset)
-        end
-      end
-      
-      # Determine if this receiver will accept a parsed value
-      # at a given xpath (relative to the receiver's @object)
-      
-      def receives_node?(xpath_regex)
-        return false unless self.class.xdef['xpath']
-        
-        unless @cache.has_key?(xpath_regex)
-          @cache[xpath_regex] = self.class.xdef['xpath'].find { |xp| xp.match(xpath_regex) } ? true : false
-        end
-        
-        @cache[xpath_regex]
       end
       
       # Run defined procedures, apply defaults, and clean up
@@ -321,7 +239,7 @@ module ASpaceImport
           val = proc.call(val)
         end
         
-        if val == nil and self.class.xdef['default'] && !@object.send("#{self.class.property}")
+        if val == nil && self.class.xdef['default'] && !@object.send("#{self.class.property}")
           val = self.class.xdef['default']
         end
         
@@ -334,8 +252,11 @@ module ASpaceImport
         val
       end
       
-      # take a string, hash, or JSON object that satisfies
-      # a property of the receiver's @object
+      def <<(val)
+        receive(val)
+      end
+      
+      # @param val - string, hash, or JSON object
       
       def receive(val = nil)
         
@@ -343,56 +264,140 @@ module ASpaceImport
                 
         return false if val == nil
         
-        case self.class.val_type
-                  
-        when :uri
-          val = val.uri
-        
-        when :array_of_objects
-          val.block_further_reception if val.respond_to? :block_further_reception
-          
-          val = @object.send("#{self.class.property}").push(val.to_hash)
+        case self.class.property_type
 
-        when :array_of_uris_or_objects          
+        when /^record_uri_or_record_inline/
           val.block_further_reception if val.respond_to? :block_further_reception
-
           if val.class.method_defined? :uri
             val = val.uri
           elsif val.class.method_defined? :to_hash
             val = val.to_hash
           end
-
-          val = @object.send("#{self.class.property}").push(val)
+                  
+        when /^record_uri/
+          if val.class.method_defined? :uri
+            val = val.uri
+          else
+            val.to_s
+          end
           
-        end               
+        when /^record_inline/
+          val.block_further_reception if val.respond_to? :block_further_reception
+          val = val.to_hash
+        
+        when /^record_ref/
+          if val.class.method_defined? :uri
+            val = {'ref' => val.uri}
+          end  
+        end
+        
+        if self.class.property_type.match /list$/
+          if val.is_a?(Array)
+            # ugly workaround for crosswalk overrides using 'split' and 'map':
+            # hope it doesn't break anything
+            val.each {|v| @object.send("#{self.class.property}").push(val) } 
+          else   
+            val = @object.send("#{self.class.property}").push(val)
+          end
+        end
         
         @object.send("#{self.class.property}=", val)
       end
     end
-    
-    # Classify properties based on JSON schemas.
-    
-    def self.property_type(schema_def)
-      if schema_def['type'] == 'string'
-        :string
-      elsif schema_def['type'].match(/^JSON.*object$/)
-        :object
-      elsif schema_def['type'].match(/^JSON.*(uri|uri_or_object)$/)
-        :uri
-      elsif schema_def['type'] == 'array' && schema_def['items']['type'].is_a?(String)
-        if schema_def['items']['type'].match(/^JSON.*(uri|uri_or_object)$/)
-          :array_of_uris_or_objects
-        elsif schema_def['items']['type'].match(/^JSON.*object$/) || schema_def['items']['type'].match(/^object$/) 
-          :array_of_objects
-        else
-          :array_of_strings
-        end
-      elsif schema_def['type'] == 'array' && schema_def['items']['type'].is_a?(Array)
-        :array_of_objects
-      else
-        :unknown
+
+
+    def self.ref_type_list(property_ref_type)
+      if property_ref_type.is_a? Array
+        property_ref_type.map { |t| t['type'].scan(/:([a-zA-Z_]*)/)[0][0] }
+      else  
+        property_ref_type.scan(/:([a-zA-Z_]*)/)[0][0]
       end
     end
     
+    # @param property_def - property fragment from a json schema
+    # @returns - [property_type_code, array_of_qualified_json_types]
+    
+    def self.get_property_type(property_def)
+      
+      # subrecord slots taking more than one type
+
+      if property_def['type'].is_a? Array
+        if property_def['type'].reject {|t| t['type'].match(/object$/)}.length != 0
+          raise CrosswalkException.new(:property_def => property_def)
+        end
+        
+        return [:record_inline, property_def['type'].map {|t| t['type'].scan(/:([a-zA-Z_]*)/)[0][0] }]
+      end
+
+      # all other cases
+
+      case property_def['type']
+
+      when 'boolean'
+        [:boolean, nil]
+      
+      when 'date'
+        [:string, nil]
+        
+      when 'string'
+        [:string, nil]
+        
+      when 'object'
+        if property_def['subtype'] == 'ref'          
+          [:record_ref, ref_type_list(property_def['properties']['ref']['type'])]
+        else
+          raise CrosswalkException.new(:property_def => property_def)
+        end
+        
+      when 'array'
+        arr = get_property_type(property_def['items'])
+        [(arr[0].to_s + '_list').to_sym, arr[1]]
+        
+      when /^JSONModel\(:([a-z_]*)\)\s(uri)$/
+        [:record_uri, [$1]]
+        
+      when /^JSONModel\(:([a-z_]*)\)\s(uri_or_object)$/
+        [:record_uri_or_record_inline, [$1]]
+        
+      when /^JSONModel\(:([a-z_]*)\)\sobject$/
+        [:record_inline, [$1]]
+  
+      else
+        
+        raise CrosswalkException.new(:property_def => property_def)
+      end
+    end
+    
+    # @param json - JSON Object to be modified
+    # @param ref_source - a hash mapping old uris to new uris
+    # The ref_source values are evaluated by a block
+    
+    def self.update_record_references(json, ref_source)
+      data = json.to_hash
+      data.each do |k, v|
+
+        property_type = get_property_type(json.class.schema["properties"][k])[0]
+
+        if property_type == :record_ref && ref_source.has_key?(v['ref'])
+          data[k]['ref'] = yield ref_source[v['ref']]
+          
+        elsif property_type == :record_ref_list
+
+          v.each {|li| li['ref'] = yield ref_source[li['ref']] if ref_source.has_key?(li['ref'])}
+                 
+        elsif property_type.match(/^record_uri(_or_record_inline)?$/) \
+          and v.is_a? String \
+          and !v.match(/\/vocabularies\/[0-9]+$/) \
+          and ref_source.has_key?(v)
+
+          data[k] = yield ref_source[v]
+          
+        elsif property_type.match(/^record_uri(_or_record_inline)?_list$/) && v[0].is_a?(String)
+          data[k] = v.map { |vn| (vn.is_a? String && vn.match(/\/.*[0-9]$/)) && ref_source.has_key?(vn) ? (yield ref_source[vn]) : vn }
+        end    
+      end
+      
+      json.set_data(data)
+    end
   end
 end

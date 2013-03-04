@@ -57,7 +57,7 @@ describe 'ArchivalObject model' do
     
     opts = {:instances => [{
          "instance_type" => generate(:instance_type),
-         "container" => build(:json_container).to_hash
+         "container" => build(:json_container)
        }]}
     
        ao = ArchivalObject.create_from_json(
@@ -86,6 +86,27 @@ describe 'ArchivalObject model' do
                                 build(:json_archival_object, opts),
                                 :repo_id => $repo_id)
     }.to raise_error
+  end
+
+
+  it "enforces ref_id uniqueness only within a resource" do
+    res1 = create(:resource, {:repo_id => $repo_id})
+    res2 = create(:resource, {:repo_id => $repo_id})
+
+    create(:archival_object, {:ref_id => "the same", :root_record_id => res1.id, :repo_id => $repo_id})
+    create(:archival_object, {:ref_id => "the same", :root_record_id => nil, :repo_id => $repo_id})
+
+    expect {
+      create(:archival_object, {:ref_id => "the same", :root_record_id => res1.id, :repo_id => $repo_id})
+    }.to raise_error(Sequel::ValidationFailed)
+
+    expect {
+      create(:archival_object, {:ref_id => "the same", :root_record_id => res2.id, :repo_id => $repo_id})
+    }.to_not raise_error
+
+    expect {
+      create(:archival_object, {:ref_id => "the same", :root_record_id => nil, :repo_id => $repo_id})
+    }.to_not raise_error
   end
 
 end

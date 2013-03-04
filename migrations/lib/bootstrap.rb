@@ -3,9 +3,10 @@
 require_relative "../config/config"
 require_relative "../../common/jsonmodel"
 
+$dry_mode ||= false
+
 unless $test_mode
   JSONModel::init( { :client_mode => true, :url => ASpaceImportConfig::ASPACE_BASE, :strict_mode => true } )
-  JSONModel::init( { :client_mode => true, :strict_mode => true } )
 end
 
 require_relative "crosswalk"
@@ -18,11 +19,12 @@ require_relative "exporter"
 
 ASpaceExport::init
 
-res = JSON.parse(`curl -F'password=admin' #{ASpaceImportConfig::ASPACE_BASE}/users/admin/login`)
-session_id = res['session']
-puts "Session ID #{session_id}"
-Thread.current[:backend_session] = session_id
-
+unless $dry_mode || $test_mode
+  res = JSON.parse(`curl -F'password=admin' #{ASpaceImportConfig::ASPACE_BASE}/users/admin/login`)
+  session_id = res['session']
+  puts "Session ID #{session_id}"
+  Thread.current[:backend_session] = session_id
+end
 
 
 

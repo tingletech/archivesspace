@@ -4,17 +4,20 @@ class ImportController < ApplicationController
 
   def index
     
+    @importer_key = params[:importer]
+    
     unless session[:repo_id] and session[:repo_id] > 1
-      flash[:notice] = "You need to select a repository before importing"
+      flash.now[:notice] = I18n.t("import.messages.missing_repo")
     end
-    @importer_list = ASpaceImport::Importer.list
 
   end
+   
+    
   
   def upload
 
     if params[:upload].blank?
-      flash[:error] = "Please select an EAD file to upload"
+      flash.now[:error] = I18n.t("import.messages.missing_file")
     else
       source_file = ImportFile.new(params[:upload])
 
@@ -24,19 +27,24 @@ class ImportController < ApplicationController
 
       begin
 
-        results = run_import(source_file)
+        results = run_import(source_file, params[:importer])
 
         source_file.delete
 
-        flash[:success] = results[0]
+        if results[0].match /200/
+          flash.now[:success] = results[0]
+        else
+          flash.now[:error] = I18n.t("import.messages.error_prefix") 
+        end
+        
         @import_results = results[1]
 
       rescue ValidationException => e
         errors_str = e.errors.collect.map{|attr, err| "#{e.invalid_object.class.record_type}/#{attr} #{err.join(', ')}"}.join("")
-        flash[:error] = "Error importing file: <br/> <div class='offset1'>#{errors_str}</div>".html_safe
+        flash.now[:error] = "#{I18n.t("import.messages.error_prefix")}: <br/> <div class='offset1'>#{errors_str}</div>".html_safe
       rescue Exception => e
         Rails.logger.debug("Exception raised on file import: #{e.inspect}")
-        flash[:error] = "Error importing file: <br/> <div class='offset1'>#{e.class.name} #{e.inspect}</div>".html_safe
+        flash.now[:error] = "#{I18n.t("import.messages.error_prefix")}: <br/> <div class='offset1'>#{e.class.name} #{e.inspect}</div>".html_safe
       end
 
     end
@@ -50,19 +58,36 @@ class ImportController < ApplicationController
   
   protected
   
-  def run_import(source_file)
+  def run_import(source_file, importer_key)
     
+    case importer_key
+    when 'eac'
+      importer = 'xml_dom'
+      crosswalk = 'eac'
+    when 'ead'
+      importer = 'xml'
+      crosswalk = 'ead'
+    when 'accession_csv'
+      importer = 'csv'
+      crosswalk = 'accession_csv'
+    when 'marcxml'
+      importer = 'xml'
+      crosswalk = 'marcxml'
+    end
+    
+    
+        
     options = {:dry => false, 
                :relaxed => false, 
                :verbose => false, #verbose report will overflow the cookie 
                :repo_id => session[:repo_id], 
                :vocab_id => '1',
-               :importer => 'xml',
-               :crosswalk => 'ead',
+               :importer => importer,
+               :crosswalk => crosswalk,
                :input_file => source_file.path}
     
     i = ASpaceImport::Importer.create_importer(options)    
-    i.run
+    i.run_safe
     
     [i.report_summary, i.report]
   

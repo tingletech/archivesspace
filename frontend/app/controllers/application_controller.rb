@@ -7,6 +7,7 @@ class ApplicationController < ActionController::Base
 
   rescue_from ArchivesSpace::SessionGone, :with => :destroy_user_session
   rescue_from ArchivesSpace::SessionExpired, :with => :destroy_user_session
+  rescue_from RecordNotFound, :with => :render_404
 
 
   # Note: This should be first!
@@ -37,18 +38,6 @@ class ApplicationController < ActionController::Base
   #
   def handle_crud(opts)
     begin
-      # The UI may pass JSON blobs for linked resources for the purposes of displaying its form.
-      # Deserialise these so the corresponding objects are stored on the JSONModel.
-      (params[opts[:instance]]["resolved"] or []).each do |property, value|
-        if value.is_a?(Hash)
-          values = {}
-          value.each_pair {|k,json| values[k] = JSON(json) if json and not json.empty?}
-        else
-          values =  value.collect {|json| JSON(json) if json and not json.empty?}.reject {|e| e.nil?}
-        end
-        params[opts[:instance]]["resolved"][property] = values
-      end
-
       # Start with the JSONModel object provided, or an empty one if none was
       # given.  Update it from the user's parameters
       model = opts[:model] || JSONModel(opts[:instance])
@@ -64,13 +53,7 @@ class ApplicationController < ActionController::Base
 
         schema['properties'].each do |property, definition|
           if definition['type'] == 'array' && result[property].is_a?(Hash)
-            if definition['items']['type'].is_a?(String) && definition['items']['type'].match(/^JSON.*(uri|uri_or_object)$/)
-              result['resolved'] ||= {}
-              result['resolved'][property] = result[property].map {|_, v| v['resolved'] ? JSON(v['resolved']['ref']) : nil}
-              result[property] = result[property].map {|_, v| v['ref'] || v}
-            else
               result[property] = result[property].map {|_, v| v}
-            end
           end
         end
 
@@ -95,9 +78,24 @@ class ApplicationController < ActionController::Base
       end
 
 
-      instance = model.map_hash_with_schema(params[opts[:instance]],
-                                                                 nil,
-                                                                 [fix_arrays, set_false_for_checkboxes])                                                          
+      deserialise_resolved_json_blobs = proc do |hash, schema|
+        # The linker widget sends us the full blob of each record being linked
+        # to as a JSON blob.  Make this available as a regular hash by walking
+        # the document and deserialising these blobs.
+
+        if hash.has_key?('_resolved') && hash['_resolved'].is_a?(String)
+          hash.merge('_resolved' => JSON.parse(hash['_resolved']))
+        else
+          hash
+        end
+      end
+
+
+      instance = JSONSchemaUtils.map_hash_with_schema(params[opts[:instance]],
+                                                      model.schema,
+                                                      [fix_arrays,
+                                                       set_false_for_checkboxes,
+                                                       deserialise_resolved_json_blobs])
 
       if opts[:replace] || opts[:replace].nil?
         obj.replace(instance)
@@ -113,10 +111,10 @@ class ApplicationController < ActionController::Base
         instance_variable_set("@exceptions".intern, obj._exceptions)
         return opts[:on_invalid].call
       end
-      
-      if obj._exceptions[:errors]      
+
+      if obj._exceptions[:errors]
         instance_variable_set("@exceptions".intern, obj._exceptions)
-        return opts[:on_invalid].call 
+        return opts[:on_invalid].call
       end
 
       if opts[:instance] == :user and !params['user']['password'].blank?
@@ -148,18 +146,11 @@ class ApplicationController < ActionController::Base
   end
 
 
-  def user_needs_to_be_a_viewer
-    render_403 if not user_can? 'view_repository'
+  def user_must_have(permission)
+    render_403 if !session['user'] || !user_can?(permission)
   end
 
-  def user_needs_to_be_an_archivist
-    render_403 if not user_can? 'update_repository'
-  end
 
-  def user_needs_to_be_a_manager
-    render_403 if not user_can? 'manage_repository'
-  end
-  
   def user_needs_to_be_a_user
     render_403 if not session['user']
   end
@@ -171,6 +162,7 @@ class ApplicationController < ActionController::Base
   def user_needs_to_be_a_user_manager_or_new_user
     render_403 if session['user'] and not user_can? 'manage_users'
   end
+
 
   helper_method :user_can?
   def user_can?(permission, repository = nil)
@@ -200,8 +192,11 @@ class ApplicationController < ActionController::Base
 
     reset_session
 
+    @message = exception.message
+    return render :template => "401", :layout => nil if inline?
+
     flash[:error] = exception.message
-    redirect_to :controller => :welcome, :action => :index
+    redirect_to :controller => :welcome, :action => :index, :login => true
   end
 
 
@@ -268,18 +263,16 @@ class ApplicationController < ActionController::Base
 
 
   def render_403
+    return render :template => "403", :layout => nil if inline?
+
     render "/403"
   end
 
 
-  # FIXME: a gross workaround while we reconcile the differences between the way
-  # accessions are linked and the way subjects are linked.  Soon we'll move
-  # everything over to use this new 'ref' syntax.
-  def munge_related(hash, property)
-    if hash[property]
-      hash[property] = hash[property].map {|uri| {'ref' => uri}}
-    end
-  end
+  def render_404
+    return render :template => "404", :layout => nil if inline?
 
+    render "/404"
+  end
 
 end
