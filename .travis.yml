@@ -17,7 +17,6 @@ jdk:
 
 branches:
   only:
-    - master
     - travis-mysql
 
 #     exec("java", "-Xmx2g", "-XX:MaxPermSize=512M",
